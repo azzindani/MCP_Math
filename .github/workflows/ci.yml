@@ -16,7 +16,7 @@ jobs:
         os: [ubuntu-22.04, macos-latest, windows-latest]
 
     env:
-      PYTHONPATH: "."
+      PYTHONPATH: "src"
       MCP_CONSTRAINED_MODE: "1"
 
     steps:
@@ -37,7 +37,7 @@ jobs:
         run: uv run python verify_tool_docstrings.py
 
       - name: Lint with ruff
-        run: uv run ruff check .
+        run: uv run ruff check src/
 
       - name: Run tests (constrained mode)
         run: uv run pytest tests/ -v --tb=short
