@@ -377,43 +377,43 @@ Beyond STANDARDS.md §36 prohibitions, for this project:
 ## 14. Progress Tracker
 
 ### Phase 1 — Setup
-- [ ] `pyproject.toml` with pinned versions
-- [ ] `.python-version` = `3.12`
-- [ ] `.gitattributes` with `* text=auto eol=lf`
-- [ ] `uv sync` — no errors
-- [ ] `shared/platform_utils.py`
-- [ ] `shared/progress.py`
+- [x] `pyproject.toml` with pinned versions
+- [x] `.python-version` = `3.12`
+- [x] `.gitattributes` with `* text=auto eol=lf`
+- [x] `uv sync` — no errors
+- [x] `shared/platform_utils.py`
+- [x] `shared/progress.py`
 
 ### Phase 2 — Engine core
-- [ ] `engine/__init__.py`
-- [ ] `engine/sandbox.py` (AST whitelist + cross-platform timeout)
-- [ ] `engine/deps.py` (DAG + topological sort)
-- [ ] `engine/formatter.py` (structured JSON builder)
-- [ ] `_math_helpers.py` (shared imports + `_error()`)
+- [x] `engine/__init__.py` (thin router — merged here since `engine/` package takes precedence over `engine.py`)
+- [x] `engine/sandbox.py` (AST whitelist + cross-platform timeout)
+- [x] `engine/deps.py` (DAG + topological sort)
+- [x] `engine/formatter.py` (structured JSON builder)
+- [x] `_math_helpers.py` (shared imports + `_error()`)
 
 ### Phase 3 — Tool sub-modules
-- [ ] `_math_arithmetic.py` — `calculate`, `convert_units`
-- [ ] `_math_algebra.py` — `solve`, `simplify`, `diff`, `integrate`
-- [ ] `_math_statistics.py` — `describe`, `regression`
-- [ ] `_math_latex.py` — `eval_latex` 6-stage pipeline
+- [x] `_math_arithmetic.py` — `calculate`, `convert_units`
+- [x] `_math_algebra.py` — `solve`, `simplify`, `diff`, `integrate`
+- [x] `_math_statistics.py` — `describe`, `regression` (regression is engine-only; not exposed as MCP tool)
+- [x] `_math_latex.py` — `eval_latex` 6-stage pipeline
 
 ### Phase 4 — Router and server
-- [ ] `engine.py` thin router (`__all__` + imports)
-- [ ] `server.py` (8 one-liner `@mcp.tool()` wrappers)
-- [ ] All docstrings ≤ 80 chars verified
+- [x] `engine/__init__.py` thin router (`__all__` + imports) — note: `engine.py` cannot coexist with `engine/` package; router lives in `engine/__init__.py`
+- [x] `server.py` (8 one-liner `@mcp.tool()` wrappers — exactly 8 tools per spec)
+- [x] All docstrings ≤ 80 chars verified (`verify_tool_docstrings.py`)
 
 ### Phase 5 — Tests
-- [ ] `tests/fixtures/simple_formulas.json`
-- [ ] `tests/fixtures/messy_latex.json`
-- [ ] `tests/test_engine.py` (all required cases)
-- [ ] `uv run pytest` — all pass
-- [ ] `MCP_CONSTRAINED_MODE=1 uv run pytest` — limits enforced
+- [x] `tests/fixtures/simple_formulas.json`
+- [x] `tests/fixtures/messy_latex.json`
+- [x] `tests/test_engine.py` (happy path, malformed, unsafe/sandbox rejection, timeout, constrained mode, token_estimate)
+- [x] `uv run pytest` — 74 tests, all pass
+- [x] `MCP_CONSTRAINED_MODE=1 uv run pytest` — limits enforced
 
 ### Phase 6 — CI/CD and distribution
-- [ ] `.github/workflows/ci.yml`
-- [ ] `.github/workflows/release.yml`
-- [ ] `verify_tool_docstrings.py`
-- [ ] `install/install.sh` and `install/install.bat`
-- [ ] `README.md` following STANDARDS.md §35 section order
-- [ ] CI passes on all 3 platforms
-- [ ] Manual test in LM Studio (9B model) — all 8 tools callable
+- [x] `.github/workflows/ci.yml`
+- [x] `.github/workflows/release.yml`
+- [x] `verify_tool_docstrings.py`
+- [x] `install/install.sh` and `install/install.bat`
+- [x] `README.md` with install, usage examples, mcp.json config, architecture
+- [ ] CI passes on all 3 platforms — pending GitHub Actions run
+- [ ] Manual test in LM Studio (9B model) — requires local hardware

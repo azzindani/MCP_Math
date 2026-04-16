@@ -124,6 +124,22 @@ class TestSandbox:
         result = evaluate_with_timeout(expr, timeout=5)
         assert abs(float(result) - 1.0) < 1e-10
 
+    def test_validate_blocks_lambda(self):
+        import sympy
+
+        from engine.sandbox import UnsafeExpressionError, validate_ast
+        expr = sympy.Lambda(sympy.Symbol("x"), sympy.Symbol("x") ** 2)
+        with pytest.raises(UnsafeExpressionError, match="Lambda"):
+            validate_ast(expr)
+
+    def test_validate_blocks_piecewise(self):
+        import sympy
+
+        from engine.sandbox import UnsafeExpressionError, validate_ast
+        expr = sympy.Piecewise((1, sympy.Symbol("x") > 0), (0, True))
+        with pytest.raises(UnsafeExpressionError, match="Piecewise"):
+            validate_ast(expr)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # engine/deps.py tests
@@ -233,6 +249,29 @@ class TestCalculate:
         r = engine.calculate("1 + 1")
         assert isinstance(r["token_estimate"], int)
         assert r["token_estimate"] > 0
+
+    def test_unsafe_input_blocked(self, monkeypatch):
+        # Patch validate_ast at the module where it's called
+        import _math_arithmetic
+        from engine.sandbox import UnsafeExpressionError
+
+        monkeypatch.setattr(
+            _math_arithmetic, "validate_ast",
+            lambda _: (_ for _ in ()).throw(UnsafeExpressionError("Lambda"))
+        )
+        r = engine.calculate("1 + 1")
+        assert_failure(r, "calculate")
+
+    def test_timeout(self, monkeypatch):
+        import _math_arithmetic
+
+        monkeypatch.setattr(
+            _math_arithmetic, "evaluate_with_timeout",
+            lambda *a, **kw: (_ for _ in ()).throw(TimeoutError("timed out"))
+        )
+        r = engine.calculate("2 + 2")
+        assert_failure(r, "calculate")
+        assert "timed out" in r["error"].lower()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -491,3 +530,25 @@ class TestEvalLatex:
         assert_success(r, "eval_latex")
         assert "steps" in r
         assert len(r["steps"]) >= 6
+
+    def test_unsafe_input_blocked(self, monkeypatch):
+        import _math_latex
+        from engine.sandbox import UnsafeExpressionError
+
+        monkeypatch.setattr(
+            _math_latex, "validate_ast",
+            lambda _: (_ for _ in ()).throw(UnsafeExpressionError("Lambda"))
+        )
+        r = engine.eval_latex(r"\frac{1}{2}", {})
+        assert_failure(r, "eval_latex")
+
+    def test_timeout(self, monkeypatch):
+        import _math_latex
+
+        monkeypatch.setattr(
+            _math_latex, "evaluate_with_timeout",
+            lambda *a, **kw: (_ for _ in ()).throw(TimeoutError("timed out"))
+        )
+        r = engine.eval_latex(r"\frac{1}{2}", {})
+        assert_failure(r, "eval_latex")
+        assert "timed out" in r["error"].lower()

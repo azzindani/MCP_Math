@@ -64,12 +64,6 @@ def describe(dataset: list[float]) -> dict:
 
 
 @mcp.tool(annotations=_ANNOTATIONS)
-def regression(x: list[float], y: list[float], degree: int = 1) -> dict:
-    """Fit polynomial regression. Returns coefficients and R-squared."""
-    return engine.regression(x, y, degree)
-
-
-@mcp.tool(annotations=_ANNOTATIONS)
 def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
     """Evaluate LaTeX formula with variable substitution. Returns result."""
     return engine.eval_latex(formula, variables)
