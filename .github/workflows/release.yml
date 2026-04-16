@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run full test suite
+        env:
+          PYTHONPATH: "."
+          MCP_CONSTRAINED_MODE: "0"
+        run: uv run pytest tests/ -v --tb=short
+
+      - name: Create release archive
+        run: |
+          git archive --format=tar.gz \
+            --prefix=math-mcp-server/ \
+            -o math-mcp-server-${{ github.ref_name }}.tar.gz \
+            HEAD
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: math-mcp-server-${{ github.ref_name }}.tar.gz
+          generate_release_notes: true
