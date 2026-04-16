@@ -37,22 +37,22 @@ the sole executor of all numeric operations.
 
 ```
 math-mcp-server/
-├── server.py                  ← MCP entry point, thin wrappers only
-├── engine.py                  ← thin router, imports from sub-modules
-├── _math_helpers.py           ← shared imports, constants, _error helper
-├── _math_arithmetic.py        ← calculate(), convert_units()
-├── _math_algebra.py           ← solve(), simplify(), diff(), integrate()
-├── _math_statistics.py        ← describe(), regression()
-├── _math_latex.py             ← eval_latex() — full 6-stage pipeline
-├── engine/
-│   ├── __init__.py
-│   ├── sandbox.py             ← AST whitelist + signal.alarm timeout
-│   ├── deps.py                ← DAG builder + topological sort
-│   └── formatter.py           ← structured JSON output builder
-├── shared/
-│   ├── __init__.py
-│   ├── platform_utils.py      ← is_constrained_mode(), get_max_*() helpers
-│   └── progress.py            ← ok(), fail(), info(), warn() helpers
+├── src/
+│   ├── server.py              ← MCP entry point, thin wrappers only
+│   ├── _math_helpers.py       ← shared imports, constants, _error helper
+│   ├── _math_arithmetic.py    ← calculate(), convert_units()
+│   ├── _math_algebra.py       ← solve(), simplify(), diff(), integrate()
+│   ├── _math_statistics.py    ← describe(), regression()
+│   ├── _math_latex.py         ← eval_latex() — full 6-stage pipeline
+│   ├── engine/
+│   │   ├── __init__.py        ← thin router, re-exports all tool functions
+│   │   ├── sandbox.py         ← AST whitelist + cross-platform timeout
+│   │   ├── deps.py            ← DAG builder + topological sort
+│   │   └── formatter.py       ← structured JSON output builder
+│   └── shared/
+│       ├── __init__.py
+│       ├── platform_utils.py  ← is_constrained_mode(), get_max_*() helpers
+│       └── progress.py        ← ok(), fail(), info(), warn() helpers
 ├── tests/
 │   ├── fixtures/
 │   │   ├── simple_formulas.json

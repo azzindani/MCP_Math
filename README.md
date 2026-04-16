@@ -48,7 +48,7 @@ A self-hosted MCP server that offloads all mathematical computation from a local
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$d = Join-Path $env:USERPROFILE '.mcp_servers\\math-mcp-server'; $g = Join-Path $d '.git'; if (!(Test-Path $g)) { if (Test-Path $d) { Remove-Item -Recurse -Force $d }; git clone https://github.com/azzindani/mcp_math.git $d --quiet } else { Set-Location $d; git fetch origin --quiet; git reset --hard FETCH_HEAD --quiet }; Set-Location $d; uv sync --quiet; uv run python server.py"
+        "$d = Join-Path $env:USERPROFILE '.mcp_servers\\math-mcp-server'; $g = Join-Path $d '.git'; if (!(Test-Path $g)) { if (Test-Path $d) { Remove-Item -Recurse -Force $d }; git clone https://github.com/azzindani/mcp_math.git $d --quiet } else { Set-Location $d; git fetch origin --quiet; git reset --hard FETCH_HEAD --quiet }; Set-Location $d; uv sync --quiet; $env:PYTHONPATH='src'; uv run python src/server.py"
       ],
       "env": { "MCP_CONSTRAINED_MODE": "0" },
       "timeout": 600000
@@ -66,7 +66,7 @@ A self-hosted MCP server that offloads all mathematical computation from a local
       "command": "bash",
       "args": [
         "-c",
-        "d=\"$HOME/.mcp_servers/math-mcp-server\"; if [ ! -d \"$d/.git\" ]; then rm -rf \"$d\"; git clone https://github.com/azzindani/mcp_math.git \"$d\" --quiet; else cd \"$d\" && git fetch origin --quiet && git reset --hard FETCH_HEAD --quiet; fi; cd \"$d\"; uv sync --quiet; uv run python server.py"
+        "d=\"$HOME/.mcp_servers/math-mcp-server\"; if [ ! -d \"$d/.git\" ]; then rm -rf \"$d\"; git clone https://github.com/azzindani/mcp_math.git \"$d\" --quiet; else cd \"$d\" && git fetch origin --quiet && git reset --hard FETCH_HEAD --quiet; fi; cd \"$d\"; uv sync --quiet; PYTHONPATH=src uv run python src/server.py"
       ],
       "env": { "MCP_CONSTRAINED_MODE": "0" },
       "timeout": 600000
@@ -219,20 +219,21 @@ rm -rf ~/.mcp_servers/math-mcp-server
 
 ```
 math-mcp-server/
-├── server.py                  ← MCP entry point — thin wrappers only (zero domain logic)
-├── _math_helpers.py           ← shared imports, constants, _error() helper
-├── _math_arithmetic.py        ← calculate(), convert_units()
-├── _math_algebra.py           ← solve(), simplify(), diff(), integrate()
-├── _math_statistics.py        ← describe(), regression() (regression is internal only)
-├── _math_latex.py             ← eval_latex() — full 6-stage pipeline
-├── engine/
-│   ├── __init__.py            ← thin router + re-exports all tool functions
-│   ├── sandbox.py             ← AST whitelist + cross-platform timeout
-│   ├── deps.py                ← DAG builder + topological sort
-│   └── formatter.py           ← structured JSON output builder
-├── shared/
-│   ├── platform_utils.py      ← is_constrained_mode(), get_max_*() helpers
-│   └── progress.py            ← ok(), fail(), info(), warn() helpers
+├── src/
+│   ├── server.py              ← MCP entry point — thin wrappers only (zero domain logic)
+│   ├── _math_helpers.py       ← shared imports, constants, _error() helper
+│   ├── _math_arithmetic.py    ← calculate(), convert_units()
+│   ├── _math_algebra.py       ← solve(), simplify(), diff(), integrate()
+│   ├── _math_statistics.py    ← describe(), regression() (regression is internal only)
+│   ├── _math_latex.py         ← eval_latex() — full 6-stage pipeline
+│   ├── engine/
+│   │   ├── __init__.py        ← thin router + re-exports all tool functions
+│   │   ├── sandbox.py         ← AST whitelist + cross-platform timeout
+│   │   ├── deps.py            ← DAG builder + topological sort
+│   │   └── formatter.py       ← structured JSON output builder
+│   └── shared/
+│       ├── platform_utils.py  ← is_constrained_mode(), get_max_*() helpers
+│       └── progress.py        ← ok(), fail(), info(), warn() helpers
 ├── tests/
 │   ├── fixtures/
 │   │   ├── simple_formulas.json
@@ -260,25 +261,25 @@ No `eval()`. No `exec()`. No network calls. No state. Pure functions.
 uv sync
 
 # Run all 74 tests
-uv run pytest tests/ -q --tb=short
+PYTHONPATH=src uv run pytest tests/ -q --tb=short
 
 # Run in constrained mode
-MCP_CONSTRAINED_MODE=1 uv run pytest tests/ -q --tb=short
+MCP_CONSTRAINED_MODE=1 PYTHONPATH=src uv run pytest tests/ -q --tb=short
 
 # Full CI sequence: lint → verify docstrings → test
-uv run ruff check .
+PYTHONPATH=src uv run ruff check src/
 uv run python verify_tool_docstrings.py
-uv run pytest tests/ -q --tb=short
+PYTHONPATH=src uv run pytest tests/ -q --tb=short
 ```
 
 ### Run the Server Locally
 
 ```bash
 # stdio transport (default — for LM Studio)
-uv run python server.py
+PYTHONPATH=src uv run python src/server.py
 
 # HTTP transport (for testing with curl or a browser client)
-uv run python server.py --transport http --port 8765
+PYTHONPATH=src uv run python src/server.py --transport http --port 8765
 ```
 
 ## License
