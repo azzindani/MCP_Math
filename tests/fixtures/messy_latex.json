@@ -1,0 +1,27 @@
+[
+  {
+    "formula": "\\frac{a}{b}",
+    "variables": {"a": 10.0, "b": 4.0},
+    "expected": 2.5
+  },
+  {
+    "formula": "x^{2} + 2x + 1",
+    "variables": {"x": 3.0},
+    "expected": 16.0
+  },
+  {
+    "formula": "\\sqrt{a^{2} + b^{2}}",
+    "variables": {"a": 3.0, "b": 4.0},
+    "expected": 5.0
+  },
+  {
+    "formula": "\\frac{1}{2} m v^{2}",
+    "variables": {"m": 10.0, "v": 6.0},
+    "expected": 180.0
+  },
+  {
+    "formula": "a + b + c",
+    "variables": {"a": 1.0, "b": 2.0, "c": 3.0},
+    "expected": 6.0
+  }
+]
