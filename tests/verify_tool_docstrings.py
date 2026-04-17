@@ -45,7 +45,7 @@ def check_file(path: Path) -> list[str]:
 
 
 def main() -> int:
-    root = Path(__file__).parent
+    root = Path(__file__).parent.parent
     targets = [root / "src" / "server.py"]
 
     all_violations: list[str] = []
