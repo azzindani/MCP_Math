@@ -268,7 +268,7 @@ MCP_CONSTRAINED_MODE=1 PYTHONPATH=src uv run pytest tests/ -q --tb=short
 
 # Full CI sequence: lint → verify docstrings → test
 PYTHONPATH=src uv run ruff check src/
-uv run python verify_tool_docstrings.py
+uv run python tests/verify_tool_docstrings.py
 PYTHONPATH=src uv run pytest tests/ -q --tb=short
 ```
 

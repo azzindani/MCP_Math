@@ -34,7 +34,7 @@ jobs:
         run: uv sync
 
       - name: Verify tool docstrings (<= 80 chars)
-        run: uv run python verify_tool_docstrings.py
+        run: uv run python tests/verify_tool_docstrings.py
 
       - name: Lint with ruff
         run: uv run ruff check src/
