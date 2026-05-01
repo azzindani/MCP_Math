@@ -41,4 +41,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: math-mcp-server-${{ github.ref_name }}.tar.gz
-          generate_release_notes: true
+          body: |
+            ## What's included
+            - 8 read-only math tools: `calculate`, `convert_units`, `solve`, `simplify`, `diff`, `integrate`, `describe`, `eval_latex`
+            - AST-validated expression evaluator — no `eval()` or `exec()`
+            - 6-stage LaTeX formula pipeline (parse → validate → resolve → substitute → evaluate → format)
+            - Cross-platform timeout (`signal.alarm` on Unix, `threading.Timer` on Windows)
+            - Constrained mode via `MCP_CONSTRAINED_MODE=1`
+            - 74 tests passing on Ubuntu, macOS, and Windows
+
+            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for install instructions and `mcp.json` config.
