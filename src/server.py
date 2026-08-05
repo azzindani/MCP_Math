@@ -31,6 +31,7 @@ async def version(request: Request) -> JSONResponse:
     """Report running version. Unauthenticated."""
     return JSONResponse({"current": _VERSION})
 
+
 _ANNOTATIONS = {
     "readOnlyHint": True,
     "destructiveHint": False,
@@ -89,9 +90,7 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Math MCP Server")
-    parser.add_argument(
-        "--transport", choices=["stdio", "http"], default=os.environ.get("MATH_TRANSPORT", "stdio")
-    )
+    parser.add_argument("--transport", choices=["stdio", "http"], default=os.environ.get("MATH_TRANSPORT", "stdio"))
     parser.add_argument("--host", default=os.environ.get("MATH_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("MATH_PORT", "8765")))
     args = parser.parse_args()
