@@ -3,9 +3,8 @@
 # math-mcp-server — remote bootstrap (Google Colab / any fresh Linux VM, no
 # Docker needed). Installs uv, clones/updates this repo, syncs Python deps.
 #
-# Companion to remote_launch.sh — see math_colab.ipynb for a ready-to-run
-# 3-cell notebook. Same idea as azzindani/Folio's install.sh, adapted for a
-# uv/Python project instead of npm.
+# Companion to remote_launch.sh. Same idea as azzindani/Folio's install.sh,
+# adapted for a uv/Python project instead of npm.
 #
 # Usage:
 #   REPO_DIR=/content/MCP_Math ./remote_install.sh
