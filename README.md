@@ -255,6 +255,20 @@ Not for production: Quick Tunnels are unauthenticated at the transport layer.
 Set `MATH_API_KEY` or `MATH_TOKENS_FILE` before tunneling so `/mcp` still
 requires a bearer token even while it's publicly reachable.
 
+### Remote smoke test (`remote_smoke_test.sh`)
+
+Not part of pytest/CI (pytest stays offline-only) — this is the separate,
+manual/on-demand check that exercises the real deployed HTTP endpoint: auth
+enforcement plus a real handwritten-prompt-style call for **all 8 tools**
+(`calculate`, `convert_units`, `solve`, `simplify`, `diff`, `integrate`,
+`describe`, `eval_latex`), each asserted against a real computed result, not
+just "the call didn't crash."
+
+```bash
+./remote_smoke_test.sh                        # reads MATH_API_KEY from .env, targets math.casava.space
+DOMAIN=http://localhost:8765 ./remote_smoke_test.sh   # test a different target
+```
+
 ## Configuration
 
 ### Environment Variables
