@@ -1,0 +1,47 @@
+# syntax=docker/dockerfile:1.7
+# ─────────────────────────────────────────────────────────────────────────────
+# {{PKG_NAME}} — production container for a uv-workspace of multiple MCP
+# servers. Generated from MCP_Math's templates/Dockerfile.multi.template —
+# see MCP_Math/scripts/render_deploy_files.py.
+#
+# One image, N containers: each sub-server runs as its own container from
+# this same image, selected via SERVER_MODULE (path to its server.py) and
+# {{PREFIX}}_PORT at `docker run` / compose time. See docker-compose.yml for
+# the full one-service-per-sub-server layout.
+#
+# Build:  docker build -t {{PKG_NAME}}:latest .
+# Run one server:
+#   docker run --rm -p 8801:8801 \
+#     -e SERVER_MODULE=servers/example/server.py -e {{PREFIX}}_PORT=8801 \
+#     {{PKG_NAME}}:latest
+# ─────────────────────────────────────────────────────────────────────────────
+
+ARG PYTHON_VERSION=3.12-slim
+
+FROM python:${PYTHON_VERSION} AS builder
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY pyproject.toml uv.lock ./
+COPY servers ./servers
+RUN uv sync --frozen --no-dev
+
+FROM python:${PYTHON_VERSION} AS runtime
+RUN groupadd -r app && useradd -r -g app app
+WORKDIR /app
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/servers /app/servers
+COPY --from=builder /app/shared /app/shared
+COPY pyproject.toml ./
+
+ENV PATH="/app/.venv/bin:${PATH}" \
+    PYTHONPATH="/app" \
+    PYTHONUNBUFFERED=1 \
+    {{PREFIX}}_TRANSPORT=http \
+    {{PREFIX}}_HOST=0.0.0.0
+
+USER app
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"{{PREFIX}}_PORT\"]}/health', timeout=3)" || exit 1
+
+ENTRYPOINT ["sh", "-c", "python \"$SERVER_MODULE\""]

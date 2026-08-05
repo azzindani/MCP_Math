@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1.7
+# ─────────────────────────────────────────────────────────────────────────────
+# {{PKG_NAME}} — production container. Generated from MCP_Math's
+# templates/Dockerfile.single.template — see MCP_Math/scripts/render_deploy_files.py.
+#
+# Two-stage build: uv sync into a venv, then copy venv + source into a slim
+# python:3.12 runtime. No compiled artifact — source runs directly.
+#
+# Build:  docker build -t {{PKG_NAME}}:latest .
+# Run:    docker run --rm -p {{PORT}}:{{PORT}} {{PKG_NAME}}:latest
+# Auth:   docker run --rm -p {{PORT}}:{{PORT}} -e {{PREFIX}}_API_KEY=secret {{PKG_NAME}}:latest
+# ─────────────────────────────────────────────────────────────────────────────
+
+ARG PYTHON_VERSION=3.12-slim
+
+FROM python:${PYTHON_VERSION} AS builder
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+COPY {{SRC_COPY_SRC}} {{SRC_COPY_DST}}
+RUN uv sync --frozen --no-dev
+
+FROM python:${PYTHON_VERSION} AS runtime
+RUN groupadd -r app && useradd -r -g app app
+WORKDIR /app
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder {{RUNTIME_COPY_SRC}} {{RUNTIME_COPY_DST}}
+COPY pyproject.toml ./
+
+ENV PATH="/app/.venv/bin:${PATH}" \
+    PYTHONPATH="{{PYTHONPATH}}" \
+    PYTHONUNBUFFERED=1 \
+    {{PREFIX}}_TRANSPORT=http \
+    {{PREFIX}}_HOST=0.0.0.0 \
+    {{PREFIX}}_PORT={{PORT}}
+
+USER app
+EXPOSE {{PORT}}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"{{PREFIX}}_PORT\"]}/health', timeout=3)" || exit 1
+
+ENTRYPOINT ["python", "{{ENTRYPOINT_PATH}}"]

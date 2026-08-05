@@ -1,0 +1,20 @@
+name: "Verify tool docstrings"
+description: >
+  Run a repo's docstring-length verifier script (STANDARDS.md: MCP tool
+  docstrings must be <= 80 chars). Shared entry point across all azzindani
+  MCP_* repos; each repo keeps its own verify_tool_docstrings.py since the
+  tool-module layout differs (single server vs. multi-server monorepo).
+  Called via: uses: azzindani/MCP_Math/.github/actions/verify-docstrings@main
+
+inputs:
+  script-path:
+    description: Path to the repo's verify_tool_docstrings.py
+    required: false
+    default: "tests/verify_tool_docstrings.py"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Verify tool docstrings (<= 80 chars)
+      shell: bash
+      run: uv run python ${{ inputs.script-path }}

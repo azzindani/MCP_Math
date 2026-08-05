@@ -6,6 +6,28 @@ on:
       - "v*.*.*"
 
 jobs:
+  # Publishes ghcr.io/<owner>/math-mcp-server:<version> + :latest from the
+  # existing Dockerfile. Independent of the `release` job so a registry
+  # permission hiccup never blocks the GitHub Release + tarball.
+  # First run may need repo Settings -> Actions -> "Read and write permissions".
+  docker:
+    name: Publish Docker image (GHCR)
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and push
+        uses: ./.github/actions/docker-ghcr-publish
+        with:
+          image-name: math-mcp-server
+          push: "true"
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-22.04
@@ -15,16 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-
-      - name: Set up Python 3.12
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync
+      - name: Setup uv + Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Run full test suite
         env:
@@ -51,5 +65,7 @@ jobs:
             - Cross-platform timeout (`signal.alarm` on Unix, `threading.Timer` on Windows)
             - Constrained mode via `MCP_CONSTRAINED_MODE=1`
             - 74 tests passing on Ubuntu, macOS, and Windows
+            - HTTP transport (`--transport http`) with `/health`, `/version`, and bearer-token auth (`MATH_TOKENS_FILE` / `MATH_TOKENS` / `MATH_API_KEY`)
+            - Docker image: `ghcr.io/${{ github.repository_owner }}/math-mcp-server:${{ github.ref_name }}`
 
-            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for install instructions and `mcp.json` config.
+            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for install instructions, `mcp.json` config, and Docker/HTTP deployment.

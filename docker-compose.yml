@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# math-mcp-server — local & VPS-friendly compose stack.
+#
+# Quick start (open mode, no auth — localhost/private network only):
+#   docker compose up -d --build
+#   curl http://localhost:8765/health
+#
+# With auth (recommended for any network-reachable deploy):
+#   cp tokens.example.json tokens.json   # edit: replace placeholders
+#   MATH_TOKENS_FILE=/home/math/tokens.json docker compose up -d --build
+#
+# Reverse proxy / TLS is intentionally out of scope here — front this (and its
+# sibling MCP_* services) with your own nginx/Caddy/Cloudflare Tunnel.
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  math-mcp:
+    build:
+      context: .
+    image: ${MATH_IMAGE:-math-mcp-server:latest}
+    container_name: math-mcp-server
+    restart: unless-stopped
+    ports:
+      - "${MATH_HOST_PORT:-8765}:8765"
+    environment:
+      MATH_TRANSPORT: http
+      MATH_HOST: 0.0.0.0
+      MATH_PORT: 8765
+      MATH_TOKENS_FILE: ${MATH_TOKENS_FILE:-}
+      MATH_TOKENS: ${MATH_TOKENS:-}
+      MATH_API_KEY: ${MATH_API_KEY:-}
+      MCP_CONSTRAINED_MODE: ${MCP_CONSTRAINED_MODE:-0}
+    mem_limit: ${MATH_MEM_LIMIT:-1g}
+    volumes:
+      # Mount tokens.json read-only when MATH_TOKENS_FILE is set. The file at
+      # ./tokens.json is optional — comment out if you use MATH_TOKENS (inline)
+      # or MATH_API_KEY (single key) instead. `cp tokens.example.json tokens.json`
+      # before first run, or docker will create an empty directory in its place.
+      - ./tokens.json:/home/math/tokens.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

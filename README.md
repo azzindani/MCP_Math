@@ -187,6 +187,66 @@ All 8 tools are read-only pure functions. Input → output, nothing persisted.
 
 15. **Kinetic energy formula**: "Compute \\frac{1}{2} m v^{2} where m=10 and v=6"
 
+## Deployment
+
+| Mode | Best for | Transport | Auth |
+|---|---|---|---|
+| **Local stdio** (default, above) | LM Studio / Claude Code on your machine | stdio | none |
+| **Local Docker / HTTP** | Testing, or one other machine on your LAN | HTTP on a port | optional |
+| **VPS Docker** | Remote MCP clients (claude.ai, hosted harnesses) | HTTP on a port | **required** |
+
+### HTTP transport (no Docker)
+
+```bash
+uv run python src/server.py --transport http --host 0.0.0.0 --port 8765
+curl http://localhost:8765/health   # {"status":"ok","version":"0.1.0"}
+```
+
+### Docker
+
+```bash
+docker compose up -d --build
+curl http://localhost:8765/health
+```
+
+With auth (recommended for any network-reachable deploy):
+
+```bash
+cp tokens.example.json tokens.json   # edit: replace placeholders with `openssl rand -hex 32`
+MATH_TOKENS_FILE=/home/math/tokens.json docker compose up -d --build
+```
+
+`/mcp` requires `Authorization: Bearer <token>` once any of `MATH_TOKENS_FILE` /
+`MATH_TOKENS` / `MATH_API_KEY` is set; `/health` and `/version` stay unauthenticated.
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `MATH_TRANSPORT` | `stdio` | `stdio` or `http` |
+| `MATH_HOST` | `127.0.0.1` | Bind address for HTTP mode |
+| `MATH_PORT` | `8765` | Port for HTTP mode |
+| `MATH_TOKENS_FILE` | unset | JSON file of named bearer tokens (`{"name": "token"}`) — highest priority |
+| `MATH_TOKENS` | unset | Inline `"name:token,name2:token2"` |
+| `MATH_API_KEY` | unset | Single shared bearer token |
+| `MCP_CONSTRAINED_MODE` | `0` | Set to `1` to tighten dataset size limits for low-memory machines (max dataset: 100 rows vs 10 000) |
+
+### Remote testing (Cloudflare Quick Tunnel)
+
+Same idea as `azzindani/Folio`'s `launch.sh`: bring the Docker deployment up
+and expose it at an ephemeral `*.trycloudflare.com` URL — no VPS, no DNS, no
+account — so it's reachable from any MCP-compatible harness for a quick
+remote smoke test.
+
+```bash
+./launch_tunnel.sh          # docker compose up -d --build, then tunnel
+./launch_tunnel.sh stop     # tear the tunnel down (containers keep running)
+```
+
+Not for production: Quick Tunnels are unauthenticated at the transport layer.
+Set `MATH_API_KEY` or `MATH_TOKENS_FILE` before tunneling so `/mcp` still
+requires a bearer token even while it's publicly reachable.
+
 ## Configuration
 
 ### Environment Variables
