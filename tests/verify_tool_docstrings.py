@@ -33,9 +33,7 @@ def check_file(path: Path) -> list[str]:
         # Docstring must be a single line and <= 80 chars
         lines = docstring.strip().splitlines()
         if len(lines) > 1:
-            violations.append(
-                f"{path}:{node.lineno}: {node.name}() docstring has {len(lines)} lines (max 1)"
-            )
+            violations.append(f"{path}:{node.lineno}: {node.name}() docstring has {len(lines)} lines (max 1)")
         elif len(lines[0]) > 80:
             violations.append(
                 f"{path}:{node.lineno}: {node.name}() docstring is {len(lines[0])} chars (max 80): {lines[0]!r}"

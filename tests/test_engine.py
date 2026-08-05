@@ -16,6 +16,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def assert_success(result: dict, op: str) -> None:
     assert result["success"] is True, f"Expected success, got: {result}"
     assert result["op"] == op
@@ -37,10 +38,12 @@ def assert_failure(result: dict, op: str) -> None:
 # shared/ tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestPlatformUtils:
     def test_default_mode(self, monkeypatch):
         monkeypatch.delenv("MCP_CONSTRAINED_MODE", raising=False)
         from shared.platform_utils import get_max_dataset_size, get_max_results, is_constrained_mode
+
         assert is_constrained_mode() is False
         assert get_max_results() == 50
         assert get_max_dataset_size() == 10_000
@@ -51,6 +54,7 @@ class TestPlatformUtils:
         import importlib
 
         import shared.platform_utils as pu
+
         importlib.reload(pu)
         assert pu.is_constrained_mode() is True
         assert pu.get_max_results() == 10
@@ -63,6 +67,7 @@ class TestPlatformUtils:
         import importlib
 
         import shared.platform_utils as pu
+
         importlib.reload(pu)
         assert pu.is_constrained_mode() is False
 
@@ -73,6 +78,7 @@ class TestDeployAuth:
         monkeypatch.delenv("MATH_TOKENS", raising=False)
         monkeypatch.delenv("MATH_API_KEY", raising=False)
         from shared.deploy_auth import build_token_verifier
+
         assert build_token_verifier("MATH") is None
 
     def test_single_api_key(self, monkeypatch):
@@ -80,6 +86,7 @@ class TestDeployAuth:
         monkeypatch.delenv("MATH_TOKENS", raising=False)
         monkeypatch.setenv("MATH_API_KEY", "secret123")
         from shared.deploy_auth import build_token_verifier
+
         verifier = build_token_verifier("MATH")
         assert verifier is not None
         assert "secret123" in verifier.tokens
@@ -89,6 +96,7 @@ class TestDeployAuth:
         monkeypatch.delenv("MATH_TOKENS_FILE", raising=False)
         monkeypatch.setenv("MATH_TOKENS", "alpha:tok-a,beta:tok-b")
         from shared.deploy_auth import build_token_verifier
+
         verifier = build_token_verifier("MATH")
         assert verifier is not None
         assert verifier.tokens["tok-a"]["client_id"] == "alpha"
@@ -100,6 +108,7 @@ class TestDeployAuth:
         monkeypatch.setenv("MATH_TOKENS_FILE", str(tokens_file))
         monkeypatch.setenv("MATH_TOKENS", "alpha:tok-a")
         from shared.deploy_auth import build_token_verifier
+
         verifier = build_token_verifier("MATH")
         assert verifier is not None
         assert "tok-c" in verifier.tokens
@@ -109,21 +118,25 @@ class TestDeployAuth:
 class TestProgress:
     def test_ok(self):
         from shared.progress import ok
+
         r = ok("done")
         assert r == {"level": "ok", "message": "done"}
 
     def test_fail(self):
         from shared.progress import fail
+
         r = fail("oops")
         assert r == {"level": "fail", "message": "oops"}
 
     def test_info(self):
         from shared.progress import info
+
         r = info("starting")
         assert r == {"level": "info", "message": "starting"}
 
     def test_warn(self):
         from shared.progress import warn
+
         r = warn("careful")
         assert r == {"level": "warn", "message": "careful"}
 
@@ -132,11 +145,13 @@ class TestProgress:
 # engine/sandbox.py tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestSandbox:
     def test_validate_safe_expression(self):
         import sympy
 
         from engine.sandbox import validate_ast
+
         expr = sympy.sympify("x**2 + 2*x + 1")
         validate_ast(expr)  # must not raise
 
@@ -144,6 +159,7 @@ class TestSandbox:
         import sympy
 
         from engine.sandbox import validate_ast
+
         exprs = [sympy.Integer(1), sympy.Symbol("x")]
         validate_ast(exprs)  # must not raise
 
@@ -151,6 +167,7 @@ class TestSandbox:
         import sympy
 
         from engine.sandbox import evaluate_with_timeout
+
         expr = sympy.sympify("2 + 2")
         result = evaluate_with_timeout(expr, timeout=5)
         assert float(result) == 4.0
@@ -159,6 +176,7 @@ class TestSandbox:
         import sympy
 
         from engine.sandbox import evaluate_with_timeout
+
         expr = sympy.sin(sympy.pi / 2)
         result = evaluate_with_timeout(expr, timeout=5)
         assert abs(float(result) - 1.0) < 1e-10
@@ -167,6 +185,7 @@ class TestSandbox:
         import sympy
 
         from engine.sandbox import UnsafeExpressionError, validate_ast
+
         expr = sympy.Lambda(sympy.Symbol("x"), sympy.Symbol("x") ** 2)
         with pytest.raises(UnsafeExpressionError, match="Lambda"):
             validate_ast(expr)
@@ -175,6 +194,7 @@ class TestSandbox:
         import sympy
 
         from engine.sandbox import UnsafeExpressionError, validate_ast
+
         expr = sympy.Piecewise((1, sympy.Symbol("x") > 0), (0, True))
         with pytest.raises(UnsafeExpressionError, match="Piecewise"):
             validate_ast(expr)
@@ -184,25 +204,30 @@ class TestSandbox:
 # engine/deps.py tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestDeps:
     def test_build_dag_float_only(self):
         from engine.deps import build_dag
+
         dag = build_dag({"a": 1.0, "b": 2.0})
         assert dag == {"a": set(), "b": set()}
 
     def test_build_dag_with_string_dep(self):
         from engine.deps import build_dag
+
         dag = build_dag({"a": 1.0, "b": "a + 1"})
         assert "a" in dag["b"]
 
     def test_topological_sort_simple(self):
         from engine.deps import topological_sort
+
         dag = {"a": set(), "b": {"a"}}
         order = topological_sort(dag)
         assert order.index("a") < order.index("b")
 
     def test_topological_sort_cycle(self):
         from engine.deps import topological_sort
+
         dag = {"a": {"b"}, "b": {"a"}}
         with pytest.raises(ValueError, match="Circular dependency"):
             topological_sort(dag)
@@ -212,9 +237,11 @@ class TestDeps:
 # engine/formatter.py tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestFormatter:
     def test_build_response_basic(self):
         from engine.formatter import build_response
+
         r = build_response("calculate", 42, [])
         assert r["success"] is True
         assert r["result"] == 42
@@ -222,6 +249,7 @@ class TestFormatter:
 
     def test_build_error_basic(self):
         from engine.formatter import build_error
+
         r = build_error("calculate", "bad input", "fix it")
         assert r["success"] is False
         assert r["error"] == "bad input"
@@ -231,6 +259,7 @@ class TestFormatter:
         import sympy
 
         from engine.formatter import build_response
+
         r = build_response("test", sympy.Integer(7), [])
         assert r["result"] == 7
 
@@ -238,6 +267,7 @@ class TestFormatter:
         import sympy
 
         from engine.formatter import build_response
+
         r = build_response("test", sympy.Float("3.14"), [])
         assert abs(r["result"] - 3.14) < 0.001
 
@@ -245,6 +275,7 @@ class TestFormatter:
 # ─────────────────────────────────────────────────────────────────────────────
 # calculate() tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestCalculate:
     def test_happy_path_addition(self):
@@ -295,8 +326,7 @@ class TestCalculate:
         from engine.sandbox import UnsafeExpressionError
 
         monkeypatch.setattr(
-            _math_arithmetic, "validate_ast",
-            lambda _: (_ for _ in ()).throw(UnsafeExpressionError("Lambda"))
+            _math_arithmetic, "validate_ast", lambda _: (_ for _ in ()).throw(UnsafeExpressionError("Lambda"))
         )
         r = engine.calculate("1 + 1")
         assert_failure(r, "calculate")
@@ -305,8 +335,7 @@ class TestCalculate:
         import _math_arithmetic
 
         monkeypatch.setattr(
-            _math_arithmetic, "evaluate_with_timeout",
-            lambda *a, **kw: (_ for _ in ()).throw(TimeoutError("timed out"))
+            _math_arithmetic, "evaluate_with_timeout", lambda *a, **kw: (_ for _ in ()).throw(TimeoutError("timed out"))
         )
         r = engine.calculate("2 + 2")
         assert_failure(r, "calculate")
@@ -316,6 +345,7 @@ class TestCalculate:
 # ─────────────────────────────────────────────────────────────────────────────
 # convert_units() tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestConvertUnits:
     def test_km_to_m(self):
@@ -344,6 +374,7 @@ class TestConvertUnits:
 # ─────────────────────────────────────────────────────────────────────────────
 # solve() tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestSolve:
     def test_linear(self):
@@ -376,6 +407,7 @@ class TestSolve:
 # simplify() tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestSimplify:
     def test_basic_simplify(self):
         r = engine.simplify("x**2 + 2*x + 1")
@@ -394,6 +426,7 @@ class TestSimplify:
 # ─────────────────────────────────────────────────────────────────────────────
 # diff() tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestDiff:
     def test_polynomial(self):
@@ -424,6 +457,7 @@ class TestDiff:
 # integrate() tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestIntegrate:
     def test_indefinite(self):
         r = engine.integrate("x**2", "x")
@@ -448,6 +482,7 @@ class TestIntegrate:
 # ─────────────────────────────────────────────────────────────────────────────
 # describe() tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestDescribe:
     def test_basic(self):
@@ -476,6 +511,7 @@ class TestDescribe:
         import importlib
 
         import shared.platform_utils as pu
+
         importlib.reload(pu)
         # 150 items — should be truncated to 100 in constrained mode
         data = list(range(150))
@@ -492,6 +528,7 @@ class TestDescribe:
 # ─────────────────────────────────────────────────────────────────────────────
 # regression() tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestRegression:
     def test_linear_perfect(self):
@@ -530,6 +567,7 @@ class TestRegression:
 # ─────────────────────────────────────────────────────────────────────────────
 # eval_latex() tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestEvalLatex:
     def test_fraction(self):
@@ -575,8 +613,7 @@ class TestEvalLatex:
         from engine.sandbox import UnsafeExpressionError
 
         monkeypatch.setattr(
-            _math_latex, "validate_ast",
-            lambda _: (_ for _ in ()).throw(UnsafeExpressionError("Lambda"))
+            _math_latex, "validate_ast", lambda _: (_ for _ in ()).throw(UnsafeExpressionError("Lambda"))
         )
         r = engine.eval_latex(r"\frac{1}{2}", {})
         assert_failure(r, "eval_latex")
@@ -585,8 +622,7 @@ class TestEvalLatex:
         import _math_latex
 
         monkeypatch.setattr(
-            _math_latex, "evaluate_with_timeout",
-            lambda *a, **kw: (_ for _ in ()).throw(TimeoutError("timed out"))
+            _math_latex, "evaluate_with_timeout", lambda *a, **kw: (_ for _ in ()).throw(TimeoutError("timed out"))
         )
         r = engine.eval_latex(r"\frac{1}{2}", {})
         assert_failure(r, "eval_latex")

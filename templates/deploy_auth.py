@@ -41,6 +41,4 @@ def build_token_verifier(prefix: str) -> StaticTokenVerifier | None:
     if not named:
         return None
 
-    return StaticTokenVerifier(
-        tokens={token: {"client_id": name, "scopes": []} for name, token in named.items()}
-    )
+    return StaticTokenVerifier(tokens={token: {"client_id": name, "scopes": []} for name, token in named.items()})
