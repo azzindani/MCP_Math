@@ -4,14 +4,32 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 
 import fastmcp
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 import engine
+from shared import build_token_verifier
 
 logging.basicConfig(level=logging.WARNING, stream=__import__("sys").stderr)
 
-mcp = fastmcp.FastMCP("math-mcp-server")
+_VERSION = "0.1.0"  # keep in sync with pyproject.toml [project].version
+
+mcp = fastmcp.FastMCP("math-mcp-server", auth=build_token_verifier("MATH"))
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request: Request) -> JSONResponse:
+    """Liveness check. Unauthenticated."""
+    return JSONResponse({"status": "ok", "version": _VERSION})
+
+
+@mcp.custom_route("/version", methods=["GET"])
+async def version(request: Request) -> JSONResponse:
+    """Report running version. Unauthenticated."""
+    return JSONResponse({"current": _VERSION})
 
 _ANNOTATIONS = {
     "readOnlyHint": True,
@@ -71,12 +89,15 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Math MCP Server")
-    parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--transport", choices=["stdio", "http"], default=os.environ.get("MATH_TRANSPORT", "stdio")
+    )
+    parser.add_argument("--host", default=os.environ.get("MATH_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("MATH_PORT", "8765")))
     args = parser.parse_args()
 
     if args.transport == "http":
-        mcp.run(transport="http", host="127.0.0.1", port=args.port)
+        mcp.run(transport="http", host=args.host, port=args.port)
     else:
         mcp.run(transport="stdio")
 

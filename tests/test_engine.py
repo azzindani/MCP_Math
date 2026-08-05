@@ -67,6 +67,45 @@ class TestPlatformUtils:
         assert pu.is_constrained_mode() is False
 
 
+class TestDeployAuth:
+    def test_open_mode_when_unset(self, monkeypatch):
+        monkeypatch.delenv("MATH_TOKENS_FILE", raising=False)
+        monkeypatch.delenv("MATH_TOKENS", raising=False)
+        monkeypatch.delenv("MATH_API_KEY", raising=False)
+        from shared.deploy_auth import build_token_verifier
+        assert build_token_verifier("MATH") is None
+
+    def test_single_api_key(self, monkeypatch):
+        monkeypatch.delenv("MATH_TOKENS_FILE", raising=False)
+        monkeypatch.delenv("MATH_TOKENS", raising=False)
+        monkeypatch.setenv("MATH_API_KEY", "secret123")
+        from shared.deploy_auth import build_token_verifier
+        verifier = build_token_verifier("MATH")
+        assert verifier is not None
+        assert "secret123" in verifier.tokens
+        assert verifier.tokens["secret123"]["client_id"] == "default"
+
+    def test_inline_named_tokens(self, monkeypatch):
+        monkeypatch.delenv("MATH_TOKENS_FILE", raising=False)
+        monkeypatch.setenv("MATH_TOKENS", "alpha:tok-a,beta:tok-b")
+        from shared.deploy_auth import build_token_verifier
+        verifier = build_token_verifier("MATH")
+        assert verifier is not None
+        assert verifier.tokens["tok-a"]["client_id"] == "alpha"
+        assert verifier.tokens["tok-b"]["client_id"] == "beta"
+
+    def test_tokens_file_wins_over_inline(self, monkeypatch, tmp_path):
+        tokens_file = tmp_path / "tokens.json"
+        tokens_file.write_text(json.dumps({"gamma": "tok-c"}))
+        monkeypatch.setenv("MATH_TOKENS_FILE", str(tokens_file))
+        monkeypatch.setenv("MATH_TOKENS", "alpha:tok-a")
+        from shared.deploy_auth import build_token_verifier
+        verifier = build_token_verifier("MATH")
+        assert verifier is not None
+        assert "tok-c" in verifier.tokens
+        assert "tok-a" not in verifier.tokens
+
+
 class TestProgress:
     def test_ok(self):
         from shared.progress import ok

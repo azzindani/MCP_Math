@@ -1,0 +1,63 @@
+name: "Build + publish Docker image to GHCR"
+description: >
+  Log in to GHCR, compute semver + latest tags, build and (optionally) push.
+  Shared across all azzindani MCP_* repos so the image-publish mechanics are
+  defined in exactly one place.
+  Called via: uses: azzindani/MCP_Math/.github/actions/docker-ghcr-publish@main
+
+inputs:
+  image-name:
+    description: Image name under ghcr.io/<owner>/<image-name>
+    required: true
+  context:
+    description: Docker build context
+    required: false
+    default: "."
+  dockerfile:
+    description: Path to the Dockerfile
+    required: false
+    default: "Dockerfile"
+  push:
+    description: Whether to push (false for CI build-check, true for release)
+    required: false
+    default: "true"
+  registry-username:
+    description: Registry login username
+    required: true
+  registry-password:
+    description: Registry login password/token
+    required: true
+
+outputs:
+  tags:
+    description: Tags applied to the built image
+    value: ${{ steps.meta.outputs.tags }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Log in to GHCR
+      if: inputs.push == 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ inputs.registry-username }}
+        password: ${{ inputs.registry-password }}
+
+    - name: Docker metadata (lowercased image + semver tags)
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ inputs.registry-username }}/${{ inputs.image-name }}
+        tags: |
+          type=semver,pattern={{version}}
+          type=raw,value=latest
+
+    - name: Build (and push)
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        push: ${{ inputs.push }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}

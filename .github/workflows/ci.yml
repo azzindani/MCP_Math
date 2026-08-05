@@ -22,19 +22,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-
-      - name: Set up Python 3.12
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync
+      - name: Setup uv + Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Verify tool docstrings (<= 80 chars)
-        run: uv run python tests/verify_tool_docstrings.py
+        uses: ./.github/actions/verify-docstrings
 
       - name: Lint with ruff
         run: uv run ruff check src/
@@ -46,3 +38,17 @@ jobs:
         env:
           MCP_CONSTRAINED_MODE: "0"
         run: uv run pytest tests/ -v --tb=short
+
+  docker-build:
+    name: Docker image builds
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image (no push)
+        uses: ./.github/actions/docker-ghcr-publish
+        with:
+          image-name: math-mcp-server
+          push: "false"
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
