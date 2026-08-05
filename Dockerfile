@@ -29,7 +29,8 @@ RUN uv sync --frozen --no-dev
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM python:${PYTHON_VERSION} AS runtime
 
-RUN groupadd -r math && useradd -r -g math math
+RUN groupadd -r math && useradd -r -g math math \
+    && mkdir -p /home/math && chown math:math /home/math
 
 WORKDIR /app
 
