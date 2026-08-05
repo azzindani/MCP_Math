@@ -67,4 +67,44 @@ RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'A
 echo "$RESULT" | grep -q '16.09344' && pass "convert_units(10 mile -> km) = 16.09344" || fail "unexpected result: $RESULT"
 
 echo
-echo "ALL CHECKS PASSED against $DOMAIN"
+echo '== prompt: "simplify (x^2 - 1)/(x - 1)" -> simplify =='
+RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"(x**2 - 1)/(x - 1)"}}}')
+echo "$RESULT" | grep -q '"x + 1"' && pass "simplify((x^2-1)/(x-1)) = x + 1" || fail "unexpected result: $RESULT"
+
+echo
+echo '== prompt: "what is the derivative of x^3 + 2x with respect to x?" -> diff =='
+RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"diff","arguments":{"expression":"x**3 + 2*x","variable":"x","order":1}}}')
+echo "$RESULT" | grep -q '"3\*x\*\*2 + 2"' && pass "diff(x^3 + 2x) = 3x^2 + 2" || fail "unexpected result: $RESULT"
+
+echo
+echo '== prompt: "integrate 2x from 0 to 5" -> integrate =='
+RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"integrate","arguments":{"expression":"2*x","variable":"x","lower":"0","upper":"5"}}}')
+echo "$RESULT" | grep -q '"25"' && pass "integrate(2x, 0, 5) = 25" || fail "unexpected result: $RESULT"
+
+echo
+echo '== prompt: "give me descriptive stats for this dataset" -> describe (real generated dataset) =='
+DATASET=$(python3 -c "
+import random
+random.seed(11)
+print([round(random.gauss(50, 10), 2) for _ in range(40)])
+")
+RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"describe\",\"arguments\":{\"dataset\":$DATASET}}}")
+echo "$RESULT" | grep -q '"count":40' && pass "describe(40-point generated dataset) computed real stats" || fail "unexpected result: $RESULT"
+
+echo
+echo '== prompt: "evaluate a/b + c where a=10, b=4, c=2" -> eval_latex =='
+RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"eval_latex","arguments":{"formula":"\\frac{a}{b} + c","variables":{"a":10,"b":4,"c":2}}}}')
+echo "$RESULT" | grep -q '"result":4.5' && pass "eval_latex(a/b + c, a=10,b=4,c=2) = 4.5" || fail "unexpected result: $RESULT"
+
+echo
+echo "ALL 8 TOOLS PASSED against $DOMAIN"
