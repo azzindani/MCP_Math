@@ -27,6 +27,15 @@ the sole executor of all numeric operations.
 - No API keys, no OAuth, no subscriptions
 - Works fully offline after install
 
+**Deployment scope:** local-first is the default and the constraints above always
+hold for the computation itself — no tool ever calls out to a cloud API to produce
+a result. On top of that, this server can also run in HTTP mode, self-hosted behind
+a reverse proxy, so it can be connected as a remote endpoint by AI platforms and
+harnesses (Claude Desktop, claude.ai remote MCP, other MCP clients) rather than only
+as a local stdio process. Remote mode is opt-in, bearer-token authenticated (see §11),
+and still runs on infrastructure you control — self-hosted, not a third-party service.
+This is one of six sibling `MCP_*` repos brought to this same deployment model.
+
 **Target hardware:** 8 GB VRAM, 9B local model (Q3_K_S / Q4_K_M), ~10,000–12,000 token context
 
 **Tier:** Basic (single-tier server — math is inherently a single-tier domain)
@@ -340,6 +349,21 @@ mcp.json uses PowerShell on Windows, bash on macOS/Linux.
 Clone guard checks `.git` subfolder. Update via `git fetch + git reset --hard FETCH_HEAD`.
 Env var: `MCP_CONSTRAINED_MODE` (never project-specific name). Timeout: `600000`.
 
+For Docker/remote deployment — connecting this server to AI platforms and harnesses
+as a hosted endpoint, not just a local stdio process — bearer auth
+(`src/shared/deploy_auth.py`, `build_token_verifier("MATH")`) gates the whole server:
+
+- `MATH_TOKENS_FILE` (named tokens, JSON `{name: token}`) — highest priority
+- `MATH_TOKENS` (inline `"name:token,name2:token2"`)
+- `MATH_API_KEY` (single shared token)
+- unset = open mode (no auth) — localhost/private-network use only, never for a
+  publicly reachable deployment
+
+The production deployment runs `MATH_API_KEY` set from a local `.env` file
+(gitignored, never committed) behind a reverse proxy; a request without a valid
+`Authorization: Bearer <token>` header is rejected with `401` before it reaches
+any tool.
+
 ---
 
 ## 12. Testing Standards (STANDARDS.md §27)
@@ -354,6 +378,18 @@ Coverage: `shared/` 100%, `engine/*.py` 90%, `_math_*.py` 90%.
 CI runs on `ubuntu-22.04`, `macos-latest`, `windows-latest` with `fail-fast: false`.
 `PYTHONPATH: "."` and `MCP_CONSTRAINED_MODE: "1"` set in CI env.
 No `brew install libomp` needed (no XGBoost/LightGBM in this project).
+
+### Remote smoke tests (not part of pytest / CI)
+
+`pytest` never spins up an MCP process or touches the network — that's
+deliberate (STANDARDS.md offline-first testing). Verifying the deployed HTTP
+endpoint (auth enforcement, real tool calls over the real public domain) is a
+separate, manual/on-demand check: hand-authored `curl` sessions or a
+`remote_smoke_test.sh` script run after `docker compose up`, never wired into
+CI, and never storing the live API key in the repo. This is how the
+Office consolidation's `Invalid Host header` regression (DNS-rebinding
+protection rejecting the public reverse-proxy hostname) was actually caught —
+`pytest` alone could not have found it.
 
 ---
 
