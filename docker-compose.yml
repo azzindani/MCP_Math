@@ -29,6 +29,12 @@ services:
       MATH_TOKENS: ${MATH_TOKENS:-}
       MATH_API_KEY: ${MATH_API_KEY:-}
       MCP_CONSTRAINED_MODE: ${MCP_CONSTRAINED_MODE:-0}
+      # OAuth 2.0 bridge for clients that require it (e.g. claude.ai's Custom
+      # Connector) instead of a plain bearer header — see src/shared/oauth_bridge.py.
+      # Only takes effect when a token source above is set; harmless otherwise.
+      MATH_OAUTH_STATE_DIR: /home/math/.oauth-state
+      MATH_OAUTH_CLIENT_ID: ${MATH_OAUTH_CLIENT_ID:-}
+      MATH_OAUTH_CLIENT_SECRET: ${MATH_OAUTH_CLIENT_SECRET:-}
     mem_limit: ${MATH_MEM_LIMIT:-1g}
     volumes:
       # Mount tokens.json read-only when MATH_TOKENS_FILE is set. The file at
@@ -36,6 +42,11 @@ services:
       # or MATH_API_KEY (single key) instead. `cp tokens.example.json tokens.json`
       # before first run, or docker will create an empty directory in its place.
       - ./tokens.json:/home/math/tokens.json:ro
+      # Persists OAuth-issued access/refresh tokens so a container restart
+      # doesn't force claude.ai to reauthorize. `mkdir -p oauth-state && chown
+      # 999:999 oauth-state` before first run (matches tokens.json's gotcha —
+      # left root-owned, the container's non-root user can't write to it).
+      - ./oauth-state:/home/math/.oauth-state
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
       interval: 30s
