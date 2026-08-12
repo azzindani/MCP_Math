@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -89,8 +90,10 @@ class TestDeployAuth:
 
         verifier = build_token_verifier("MATH")
         assert verifier is not None
-        assert "secret123" in verifier.tokens
-        assert verifier.tokens["secret123"]["client_id"] == "default"
+        access = asyncio.run(verifier.verify_token("secret123"))
+        assert access is not None
+        assert access.client_id == "default"
+        assert asyncio.run(verifier.verify_token("wrong")) is None
 
     def test_inline_named_tokens(self, monkeypatch):
         monkeypatch.delenv("MATH_TOKENS_FILE", raising=False)
@@ -99,8 +102,8 @@ class TestDeployAuth:
 
         verifier = build_token_verifier("MATH")
         assert verifier is not None
-        assert verifier.tokens["tok-a"]["client_id"] == "alpha"
-        assert verifier.tokens["tok-b"]["client_id"] == "beta"
+        assert asyncio.run(verifier.verify_token("tok-a")).client_id == "alpha"
+        assert asyncio.run(verifier.verify_token("tok-b")).client_id == "beta"
 
     def test_tokens_file_wins_over_inline(self, monkeypatch, tmp_path):
         tokens_file = tmp_path / "tokens.json"
@@ -111,8 +114,8 @@ class TestDeployAuth:
 
         verifier = build_token_verifier("MATH")
         assert verifier is not None
-        assert "tok-c" in verifier.tokens
-        assert "tok-a" not in verifier.tokens
+        assert asyncio.run(verifier.verify_token("tok-c")).client_id == "gamma"
+        assert asyncio.run(verifier.verify_token("tok-a")) is None
 
 
 class TestProgress:

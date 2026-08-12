@@ -11,13 +11,16 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 import engine
-from shared import build_token_verifier
+from shared import build_oauth_bridge, build_token_verifier
 
 logging.basicConfig(level=logging.WARNING, stream=__import__("sys").stderr)
 
-_VERSION = "0.1.0"  # keep in sync with pyproject.toml [project].version
+_VERSION = "0.1.1"  # keep in sync with pyproject.toml [project].version
 
-mcp = fastmcp.FastMCP("math-mcp-server", auth=build_token_verifier("MATH"))
+_oauth_bridge = build_oauth_bridge("MATH")
+mcp = fastmcp.FastMCP("math-mcp-server", auth=build_token_verifier("MATH", _oauth_bridge))
+if _oauth_bridge is not None:
+    _oauth_bridge.register_routes(mcp)
 
 
 @mcp.custom_route("/health", methods=["GET"])
