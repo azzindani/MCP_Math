@@ -107,4 +107,12 @@ RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'A
 echo "$RESULT" | grep -q '"result":4.5' && pass "eval_latex(a/b + c, a=10,b=4,c=2) = 4.5" || fail "unexpected result: $RESULT"
 
 echo
-echo "ALL 8 TOOLS PASSED against $DOMAIN"
+echo "== security: sympify() injection payload is rejected, not executed =="
+RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"calculate","arguments":{"expression":"__import__(\"os\").system(\"echo PWNED\")"}}}')
+echo "$RESULT" | grep -Eq '\\?"success\\?":[[:space:]]*false' && pass "dunder-import payload rejected (success:false)" || fail "expected rejection, got: $RESULT"
+echo "$RESULT" | grep -q "must not contain" && pass "rejected specifically by the '__' guard in safe_sympify(), not a generic parse failure" || fail "expected the safe_sympify '__' guard message, got: $RESULT"
+
+echo
+echo "ALL 8 TOOLS + security regression PASSED against $DOMAIN"
