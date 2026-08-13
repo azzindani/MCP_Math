@@ -11,7 +11,7 @@ from _math_helpers import (
     info,
     ok,
     pint,
-    sympify,
+    safe_sympify,
     validate_ast,
 )
 
@@ -29,7 +29,7 @@ def calculate(expression: str) -> dict:
     progress.append(info(f"Parsing: {expression!r}"))
 
     try:
-        expr = sympify(expression, evaluate=False)
+        expr = safe_sympify(expression, evaluate=False)
     except Exception as exc:
         return _error(
             op,

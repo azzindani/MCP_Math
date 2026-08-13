@@ -24,6 +24,7 @@ from sympy import (
     solve as sympy_solve,
 )
 from sympy.parsing.latex import parse_latex  # noqa: F401
+from sympy.parsing.sympy_parser import parse_expr
 
 try:
     from latex2sympy2 import latex2sympy  # noqa: F401
@@ -98,6 +99,26 @@ ALLOWED_SYMPY_NODES: frozenset[str] = frozenset(
 )
 
 
+# Plain sympify()/parse_expr() run the input string through Python's eval()
+# during PARSING itself — before validate_ast() ever sees the result. That
+# means '__import__("os").system(...)' and dunder chains like
+# '().__class__.__base__.__subclasses__()' execute (or walk live class
+# objects) as a side effect of parsing, which no post-hoc AST check can
+# undo. _SAFE_SYMPY_GLOBALS strips __builtins__ so bare dangerous names
+# fall back to being treated as sympy symbols/functions instead of real
+# Python callables, and rejecting '__' closes the dunder-attribute escape
+# route that doesn't need builtins at all.
+_SAFE_SYMPY_GLOBALS: dict = {k: v for k, v in vars(sympy).items() if not k.startswith("_")}
+_SAFE_SYMPY_GLOBALS["__builtins__"] = {}
+
+
+def safe_sympify(expression: str, evaluate: bool = True):
+    """Parse a math expression string without exposing eval() to builtins."""
+    if "__" in expression:
+        raise ValueError("expression must not contain '__'")
+    return parse_expr(expression, global_dict=_SAFE_SYMPY_GLOBALS, evaluate=evaluate)
+
+
 def _error(op: str, msg: str, hint: str, progress: list[dict] | None = None) -> dict:
     """Return a standard error dict. Shorthand for build_error()."""
     return build_error(op, msg, hint, progress)
@@ -114,6 +135,7 @@ __all__ = [
     "sympy_simplify",
     "sympy_solve",
     "sympify",
+    "safe_sympify",
     "parse_latex",
     "HAS_LATEX2SYMPY2",
     "pint",
