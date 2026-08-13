@@ -13,7 +13,7 @@ from _math_helpers import (
     fail,
     info,
     ok,
-    sympify,
+    safe_sympify,
     validate_ast,
 )
 
@@ -80,7 +80,7 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
             val = variables.get(name)
             if isinstance(val, str):
                 try:
-                    sub_expr = sympify(val.format(**resolved))
+                    sub_expr = safe_sympify(val.format(**resolved))
                     sub_result = evaluate_with_timeout(sub_expr, timeout=5, precision=15)
                     resolved[name] = float(sub_result)
                 except Exception as exc:

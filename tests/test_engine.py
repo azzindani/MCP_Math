@@ -630,3 +630,78 @@ class TestEvalLatex:
         r = engine.eval_latex(r"\frac{1}{2}", {})
         assert_failure(r, "eval_latex")
         assert "timed out" in r["error"].lower()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# sympify() injection safety
+#
+# Plain sympify()/parse_expr() run the input string through Python's eval()
+# during PARSING — before validate_ast() ever inspects the result. A crafted
+# string can execute code (or walk live class objects via dunder attributes)
+# as a side effect of parsing alone, which no post-hoc AST check can catch.
+# Every tool that parses a user-supplied expression string must go through
+# _math_helpers.safe_sympify(), never raw sympify().
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+INJECTION_PAYLOADS = [
+    "__import__('os').system('echo PWNED')",
+    "().__class__.__base__.__subclasses__()",
+    "[].__class__.__base__.__subclasses__()",
+    "(1).__class__.__mro__",
+]
+
+
+class TestSympifyInjectionSafety:
+    def test_safe_sympify_rejects_dunder_payloads(self):
+        from _math_helpers import safe_sympify
+
+        for payload in INJECTION_PAYLOADS:
+            with pytest.raises(ValueError, match="__"):
+                safe_sympify(payload)
+
+    def test_safe_sympify_still_parses_normal_math(self):
+        from _math_helpers import safe_sympify
+
+        assert safe_sympify("2 + 2") is not None
+        assert str(safe_sympify("sin(x)**2 + cos(x)**2", evaluate=False)) == "sin(x)**2 + cos(x)**2"
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_calculate_rejects_injection(self, payload):
+        r = engine.calculate(payload)
+        assert_failure(r, "calculate")
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_solve_rejects_injection(self, payload):
+        r = engine.solve(payload, "x")
+        assert_failure(r, "solve")
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_solve_rejects_injection_in_equation_rhs(self, payload):
+        r = engine.solve(f"x = {payload}", "x")
+        assert_failure(r, "solve")
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_simplify_rejects_injection(self, payload):
+        r = engine.simplify(payload)
+        assert_failure(r, "simplify")
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_diff_rejects_injection(self, payload):
+        r = engine.diff(payload, "x")
+        assert_failure(r, "diff")
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_integrate_rejects_injection(self, payload):
+        r = engine.integrate(payload, "x")
+        assert_failure(r, "integrate")
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_integrate_rejects_injection_in_bounds(self, payload):
+        r = engine.integrate("x", "x", payload, "2")
+        assert_failure(r, "integrate")
+
+    @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
+    def test_eval_latex_rejects_injection_in_substitution_formula(self, payload):
+        r = engine.eval_latex(r"\frac{a}{b}", {"a": payload, "b": 2.0})
+        assert_failure(r, "eval_latex")

@@ -13,7 +13,7 @@ from _math_helpers import (
     fail,
     info,
     ok,
-    sympify,
+    safe_sympify,
     sympy_diff,
     sympy_integrate,
     sympy_simplify,
@@ -25,7 +25,7 @@ from _math_helpers import (
 def _parse(expression: str, op: str, progress: list[dict]) -> tuple[sympy.Basic | None, dict | None]:
     """Parse an expression string; return (expr, None) or (None, error_dict)."""
     try:
-        expr = sympify(expression)
+        expr = safe_sympify(expression)
         return expr, None
     except Exception as exc:
         progress.append(fail(f"Parse error: {exc}"))
@@ -48,11 +48,11 @@ def solve(equation: str, variable: str = "x") -> dict:
         # Support both "lhs = rhs" and standalone expressions (= 0 implied)
         if "=" in equation:
             parts = equation.split("=", 1)
-            lhs = sympify(parts[0].strip())
-            rhs = sympify(parts[1].strip())
+            lhs = safe_sympify(parts[0].strip())
+            rhs = safe_sympify(parts[1].strip())
             expr = Eq(lhs, rhs)
         else:
-            expr = sympify(equation)
+            expr = safe_sympify(equation)
     except Exception as exc:
         progress.append(fail(f"Parse error: {exc}"))
         return _error(
@@ -173,8 +173,8 @@ def integrate(expression: str, variable: str = "x", lower: str = "", upper: str 
     try:
         var = Symbol(variable)
         if is_definite:
-            lo = sympify(lower)
-            hi = sympify(upper)
+            lo = safe_sympify(lower)
+            hi = safe_sympify(upper)
             result = sympy_integrate(expr, (var, lo, hi))
         else:
             result = sympy_integrate(expr, var)
