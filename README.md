@@ -28,6 +28,18 @@ A self-hosted MCP server that offloads all mathematical computation from a local
 >
 > The model will construct the correct expression string and call the appropriate tool. Vague requests like "solve my quadratic" without providing the expression will produce incorrect or empty results.
 
+### Notation accepted
+
+Every tool reads the same dialect, so a string that works in one works in all of them:
+
+| You write | Read as | Notes |
+|---|---|---|
+| `x^2` or `x**2` | power | `^` is exponentiation, never bitwise XOR |
+| `2x`, `2(x+1)` | `2*x`, `2*(x+1)` | a coefficient may touch its variable or bracket |
+| `sin^2 x`, `sin(x)^2` | `sin(x)**2` | function powers in either position |
+| `velocity`, `spends` | one symbol | multi-letter names are never split into `v*e*l*...` |
+| `Xor(a, b)` | bitwise XOR | name the function, since `^` is taken |
+
 ## Quick Install (LM Studio)
 
 1. Open LM Studio → **Developer** tab (`</>` icon) or find it via **Integrations**
