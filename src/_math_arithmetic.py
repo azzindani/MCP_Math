@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from _math_helpers import (
     UnsafeExpressionError,
     _error,
@@ -65,14 +67,28 @@ def calculate(expression: str) -> dict:
     progress.append(ok(f"Result: {result}"))
 
     # Serialize
+    #
+    # `abs(numeric) < 1e15` was meant to keep the int conversion in range, but
+    # it sits after `int(numeric)` in the same expression, so Python evaluates
+    # the conversion first: calculate("oo") raised OverflowError: cannot
+    # convert float infinity to integer, out of the tool and past the error
+    # contract, which says nothing here propagates to server.py.
+    #
+    # Infinity and NaN are legitimate SymPy answers and JSON has no token for
+    # either, so they are reported as the symbol -- which is how `zoo` from
+    # calculate("1/0") already comes back.
+    numeric_out: int | float | str
     try:
         numeric = float(result)
-        if numeric == int(numeric) and abs(numeric) < 1e15:
-            numeric_out: int | float = int(numeric)
+    except (TypeError, ValueError, OverflowError):
+        numeric_out = str(result)
+    else:
+        if not math.isfinite(numeric):
+            numeric_out = str(result)
+        elif abs(numeric) < 1e15 and numeric == int(numeric):
+            numeric_out = int(numeric)
         else:
             numeric_out = numeric
-    except (TypeError, ValueError):
-        numeric_out = str(result)  # type: ignore[assignment]
 
     return build_response(
         op,

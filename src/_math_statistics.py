@@ -42,24 +42,46 @@ def describe(dataset: list[float]) -> dict:
         if len(arr) == 0:
             return _error(op, "No finite values in dataset.", "Provide at least one finite numeric value.", progress)
 
+    # Each of these needs a minimum sample before it is defined at all: the
+    # sample standard deviation divides by n-1, skewness needs a spread to be
+    # asymmetric about, and excess kurtosis needs a fourth moment.
+    #
+    # Substituting 0.0 below those minimums, as this did, is worse than
+    # returning NaN. Every one of those zeros is a specific claim -- std 0.0
+    # says the values do not vary, skewness 0.0 says the distribution is
+    # perfectly symmetric, kurtosis 0.0 says its tails match a normal's -- and
+    # a caller has no way to tell a measured zero from a placeholder. None
+    # cannot be mistaken for a measurement.
+    _MIN_N = {"std": 2, "skewness": 3, "kurtosis": 4}
+
     try:
         n = int(len(arr))
         mean = float(np.mean(arr))
         median = float(np.median(arr))
-        std = float(np.std(arr, ddof=1)) if n > 1 else 0.0
+        std = float(np.std(arr, ddof=1)) if n >= _MIN_N["std"] else None
         minimum = float(np.min(arr))
         maximum = float(np.max(arr))
         q1 = float(np.percentile(arr, 25))
         q3 = float(np.percentile(arr, 75))
-        skewness = float(scipy_stats.skew(arr)) if n > 2 else 0.0
-        kurtosis = float(scipy_stats.kurtosis(arr)) if n > 3 else 0.0
+        skewness = float(scipy_stats.skew(arr)) if n >= _MIN_N["skewness"] else None
+        kurtosis = float(scipy_stats.kurtosis(arr)) if n >= _MIN_N["kurtosis"] else None
     except Exception as exc:
         progress.append(fail(f"Stats error: {exc}"))
         return _error(op, f"Statistics computation failed: {exc}", "Check dataset values.", progress)
 
+    undefined = {name: f"needs at least {need} values, dataset has {n}" for name, need in _MIN_N.items() if n < need}
+    # Enough values, no spread: skewness and kurtosis divide by the standard
+    # deviation, so a constant dataset makes them 0/0. scipy returns NaN, which
+    # is correct and is not something JSON can carry -- the formatter turns it
+    # into null, and this says why the null is there.
+    for name, value in (("skewness", skewness), ("kurtosis", kurtosis)):
+        if value is not None and not np.isfinite(value):
+            undefined[name] = "every value in the dataset is the same, so there is no spread to describe"
+    if undefined:
+        progress.append(warn(f"{len(undefined)} statistic(s) undefined: {', '.join(sorted(undefined))}"))
     progress.append(ok("Statistics computed"))
 
-    stats_dict = {
+    stats_dict: dict = {
         "count": n,
         "mean": mean,
         "median": median,
@@ -71,6 +93,8 @@ def describe(dataset: list[float]) -> dict:
         "skewness": skewness,
         "kurtosis": kurtosis,
     }
+    if undefined:
+        stats_dict["undefined"] = undefined
 
     return build_response(op, stats_dict, progress)
 
@@ -115,7 +139,11 @@ def regression(x: list[float], y: list[float], degree: int = 1) -> dict:
         ypred = np.polyval(coeffs, xarr)
         ss_res = float(np.sum((yarr - ypred) ** 2))
         ss_tot = float(np.sum((yarr - np.mean(yarr)) ** 2))
-        r_squared = 1.0 - ss_res / ss_tot if ss_tot != 0.0 else 1.0
+        # R-squared is the share of the variance in y that the fit explains.
+        # With every y identical there is no variance to explain and the ratio
+        # is 0/0 -- so the old fallback of 1.0 announced a perfect fit for the
+        # one case where the measure means nothing at all. None, and say why.
+        r_squared = 1.0 - ss_res / ss_tot if ss_tot != 0.0 else None
     except Exception as exc:
         progress.append(fail(f"Regression error: {exc}"))
         return _error(op, f"Regression failed: {exc}", "Check that x and y are numeric lists.", progress)
@@ -134,19 +162,22 @@ def regression(x: list[float], y: list[float], degree: int = 1) -> dict:
             terms.append(f"{c:.6g}*x^{power}")
     equation = " + ".join(terms)
 
-    progress.append(ok(f"R²={r_squared:.6f}"))
+    extra: dict = {
+        "coefficients": coeff_list,
+        "r_squared": None if r_squared is None else round(r_squared, 10),
+        "degree": degree,
+        "equation": equation,
+    }
+    if r_squared is None:
+        extra["r_squared_undefined"] = (
+            "every y value is the same, so there is no variance for the fit to explain; "
+            "the coefficients above are still the least-squares fit"
+        )
+        progress.append(warn("R² undefined: every y value is the same"))
+    else:
+        progress.append(ok(f"R²={r_squared:.6f}"))
 
-    return build_response(
-        op,
-        coeff_list,
-        progress,
-        extra={
-            "coefficients": coeff_list,
-            "r_squared": round(r_squared, 10),
-            "degree": degree,
-            "equation": equation,
-        },
-    )
+    return build_response(op, coeff_list, progress, extra=extra)
 
 
 __all__ = ["describe", "regression"]
