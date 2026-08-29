@@ -90,7 +90,7 @@ Every tool reads the same dialect, so a string that works in one works in all of
 ## Requirements
 
 * **Git** — `git --version`
-* **Python 3.12** — `python --version`
+* **Python 3.14** — `python --version`
 * **uv** — `uv --version` ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 * **LM Studio** with a model that supports tool calling (Qwen3, Gemma4, etc.)
 
@@ -160,10 +160,10 @@ All 8 tools are read-only pure functions. Input → output, nothing persisted.
 
 | Stage | Action |
 |---|---|
-| 1 — Parse | `latex2sympy2` converts LaTeX string to SymPy expression tree |
+| 1 — Parse | `sympy.parsing.latex.parse_latex` converts LaTeX string to SymPy expression tree |
 | 2 — Validate | AST whitelist check — raises `UnsafeExpressionError` on any non-math node |
 | 3 — Resolve deps | Topological sort of sub-formula dependencies (skipped when all variables are plain floats) |
-| 4 — Substitute | `sympy.subs()` replaces variable symbols with provided values |
+| 4 — Substitute | `sympy.subs()` replaces variable symbols with provided values, then fails if any quantity is still unbound |
 | 5 — Evaluate | `evaluate_with_timeout()` calls `evalf(15)` with a 5-second cross-platform timeout |
 | 6 — Format | `formatter.py` converts result to JSON-safe float/int and attaches `token_estimate` |
 
@@ -338,7 +338,7 @@ math-mcp-server/
 │   └── install.bat            ← Windows installer
 ├── pyproject.toml
 ├── uv.lock
-├── .python-version            ← pins Python 3.12
+├── .python-version            ← pins Python 3.14
 ├── .gitattributes
 ├── verify_tool_docstrings.py  ← CI gate: all @mcp.tool() docstrings ≤ 80 chars
 └── README.md

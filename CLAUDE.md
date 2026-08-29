@@ -19,7 +19,7 @@ the sole executor of all numeric operations.
 - Unit conversion (Pint, fully local)
 - Symbolic algebra: solve, simplify, differentiate, integrate (SymPy)
 - Descriptive statistics and regression (NumPy, SciPy)
-- Custom LaTeX formula execution (latex2sympy2 → SymPy → numeric result)
+- Custom LaTeX formula execution (SymPy `parse_latex` → numeric result)
 
 **Founding constraints (non-negotiable):**
 - All execution on local CPU — no GPU required, no cloud APIs, no network at runtime
@@ -162,7 +162,7 @@ or depend on a cloud service. All computation is local CPU only.
 
 The `calculate()` tool and `eval_latex()` pipeline must never pass user strings
 to Python's `eval()` or `exec()`. All expression strings are parsed by SymPy's
-`sympify()` or `latex2sympy2`, then walked by `engine/sandbox.py`'s AST whitelist
+`sympify()` or `parse_latex()`, then walked by `engine/sandbox.py`'s AST whitelist
 before any evaluation occurs.
 
 ---
@@ -215,7 +215,7 @@ All 8 tools are read-only pure functions:
 ### 6.1 `_math_helpers.py`
 
 Centralizes all shared imports, constants, and the private `_error()` helper.
-Contents: all third-party imports (sympy, numpy, scipy, pint, latex2sympy2),
+Contents: all third-party imports (sympy, numpy, scipy, pint),
 `ALLOWED_SYMPY_NODES` set, `_error(op, msg, hint)` → dict helper, `__all__`.
 
 ### 6.2 `_math_arithmetic.py`
@@ -246,10 +246,10 @@ Returns: coefficients, r_squared, degree, equation, token_estimate
 ### 6.5 `_math_latex.py` — 6-stage internal pipeline
 
 ```
-Stage 1: parse        latex2sympy2 → SymPy expression tree
+Stage 1: parse        sympy.parsing.latex.parse_latex → SymPy expression tree
 Stage 2: validate     sandbox.py AST whitelist — raises on unsafe node
 Stage 3: resolve_deps deps.py topological sort (only if sub-formulas exist)
-Stage 4: substitute   sympy .subs() with variable dict
+Stage 4: substitute   sympy .subs() with variable dict, then reject unbound names
 Stage 5: evaluate     sandbox.py evaluate_with_timeout() → evalf(15)
 Stage 6: format       formatter.py → structured JSON
 ```
@@ -322,7 +322,7 @@ Never hardcode limits. `MCP_CONSTRAINED_MODE=1` tightens dataset size limits.
 
 ## 10. Python / Tooling Standards (STANDARDS.md §5)
 
-- Python `3.12` — pin `requires-python = "==3.12.*"`
+- Python `3.14` — pin `requires-python = "==3.14.*"`
 - Package manager: `uv` only
 - Linting + formatting: `ruff` only
 - Type checking: `pyright`
@@ -427,7 +427,7 @@ Beyond STANDARDS.md §36 prohibitions, for this project:
 
 ### Phase 1 — Setup
 - [x] `pyproject.toml` with pinned versions
-- [x] `.python-version` = `3.12`
+- [x] `.python-version` = `3.14`
 - [x] `.gitattributes` with `* text=auto eol=lf`
 - [x] `uv sync` — no errors
 - [x] `shared/platform_utils.py`

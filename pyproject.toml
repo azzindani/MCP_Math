@@ -2,14 +2,16 @@
 name = "math-mcp-server"
 version = "0.1.1"
 description = "Self-hosted MCP server for deterministic math computation"
-requires-python = "==3.12.*"
+requires-python = "==3.14.*"
 dependencies = [
     "mcp>=1.0,<2.0",
     "sympy>=1.13,<2.0",
     "numpy>=2.0,<3.0",
     "scipy>=1.14,<2.0",
     "pint>=0.24,<1.0",
-    "latex2sympy2>=1.9,<2.0",
+    # sympy.parsing.latex requires this runtime at exactly 4.11.x (it checks
+    # version().startswith("4.11")); widen only when sympy itself moves.
+    "antlr4-python3-runtime>=4.11,<4.12",
 ]
 
 [tool.uv]
@@ -28,7 +30,7 @@ select = ["E", "F", "W", "I", "UP"]
 ignore = ["E402"]
 
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.14"
 typeCheckingMode = "basic"
 reportMissingImports = true
 

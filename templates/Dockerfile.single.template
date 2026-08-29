@@ -4,14 +4,14 @@
 # templates/Dockerfile.single.template — see MCP_Math/scripts/render_deploy_files.py.
 #
 # Two-stage build: uv sync into a venv, then copy venv + source into a slim
-# python:3.12 runtime. No compiled artifact — source runs directly.
+# python:3.14 runtime. No compiled artifact — source runs directly.
 #
 # Build:  docker build -t {{PKG_NAME}}:latest .
 # Run:    docker run --rm -p {{PORT}}:{{PORT}} {{PKG_NAME}}:latest
 # Auth:   docker run --rm -p {{PORT}}:{{PORT}} -e {{PREFIX}}_API_KEY=secret {{PKG_NAME}}:latest
 # ─────────────────────────────────────────────────────────────────────────────
 
-ARG PYTHON_VERSION=3.12-slim
+ARG PYTHON_VERSION=3.14-slim
 
 FROM python:${PYTHON_VERSION} AS builder
 WORKDIR /app

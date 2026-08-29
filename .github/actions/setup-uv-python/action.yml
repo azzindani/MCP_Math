@@ -1,6 +1,6 @@
 name: "Setup uv + Python"
 description: >
-  Install uv, pin Python 3.12, and `uv sync`. Shared across all azzindani
+  Install uv, pin Python 3.14, and `uv sync`. Shared across all azzindani
   MCP_* repos so the toolchain setup step is defined in exactly one place.
   Called via: uses: azzindani/MCP_Math/.github/actions/setup-uv-python@main
 
@@ -8,7 +8,7 @@ inputs:
   python-version:
     description: Python version to install
     required: false
-    default: "3.12"
+    default: "3.14"
   working-directory:
     description: Directory to run `uv sync` in (for uv-workspace monorepos)
     required: false
