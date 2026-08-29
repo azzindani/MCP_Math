@@ -80,7 +80,7 @@ def calculate(expression: str) -> dict:
     numeric_out: int | float | str
     try:
         numeric = float(result)
-    except (TypeError, ValueError, OverflowError):
+    except TypeError, ValueError, OverflowError:
         numeric_out = str(result)
     else:
         if not math.isfinite(numeric):

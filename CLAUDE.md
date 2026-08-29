@@ -337,7 +337,7 @@ Never hardcode limits. `MCP_CONSTRAINED_MODE=1` tightens dataset size limits.
 ```toml
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]

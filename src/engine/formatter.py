@@ -85,7 +85,7 @@ def _serialize(value: object) -> object:
         # Try to get a float for numeric results
         try:
             f = float(value)
-        except (TypeError, ValueError, AttributeError, OverflowError):
+        except TypeError, ValueError, AttributeError, OverflowError:
             return str(value)
         if not math.isfinite(f):
             # oo, -oo and nan are real SymPy answers; the symbol carries them.
