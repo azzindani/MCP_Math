@@ -55,3 +55,23 @@ jobs:
           push: "false"
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  # The suite above never starts a server (STANDARDS.md keeps pytest offline),
+  # and docker-build never runs the image it builds. This job is the only thing
+  # that proves the thing we actually ship answers a request.
+  e2e:
+    name: End-to-end (container)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Smoke test every tool over HTTP
+        uses: ./.github/actions/e2e-smoke
+        with:
+          port: "8765"
+          key-env: MATH_API_KEY
+          # Deliberately not the deployed hostname. Rebinding protection is off,
+          # so any Host must be accepted; an arbitrary one proves that and keeps
+          # the real domain out of one more file.
+          public-host: math.example.com
+          mcp-path: /mcp

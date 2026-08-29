@@ -16,10 +16,36 @@
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-https://math.casava.space}"
-if [ -f .env ]; then
-  set -a; source .env; set +a
+# Read the key out of .env without executing it. `source` runs every line of
+# the file, so a line that is not a KEY=VALUE assignment is a command; that has
+# already turned a stray summary line into a file named after a secret. A plain
+# read of one assignment cannot do that.
+if [ -z "${MATH_API_KEY:-}" ] && [ -f .env ]; then
+  MATH_API_KEY=$(sed -n 's/^[[:space:]]*MATH_API_KEY[[:space:]]*=[[:space:]]*//p' .env | tail -n1 | tr -d '\042\047\r')
 fi
 KEY="${MATH_API_KEY:?Set MATH_API_KEY (env var or .env file) before running}"
+
+# Every MCP response is an SSE frame whose result.content[0].text is itself a
+# JSON *string*, so each quote inside it arrives escaped and each colon gains a
+# space: a grep for '"result":93' cannot match '\"result\": 93'. Decode the
+# inner document once and assert against that. The envelope greps below used to
+# match because responses also carried structuredContent; moving to the
+# official MCP SDK dropped that field, and since the calls themselves still
+# succeeded, every assertion in this file silently stopped checking anything.
+mcp_text() {
+  python3 -c '
+import json, sys
+raw = sys.stdin.read()
+for line in raw.splitlines():
+    if line.startswith("data:"):
+        payload = json.loads(line[5:])
+        content = payload.get("result", {}).get("content", [])
+        print(content[0]["text"] if content else json.dumps(payload))
+        break
+else:
+    print(raw)
+'
+}
 
 pass() { echo "  PASS: $1"; }
 fail() { echo "  FAIL: $1"; exit 1; }
@@ -48,14 +74,14 @@ echo
 echo '== prompt: "what is 12 * 7 + sqrt(81)?" -> calculate =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"calculate","arguments":{"expression":"12*7+sqrt(81)"}}}')
-echo "$RESULT" | grep -q '"result":93' && pass "calculate(12*7+sqrt(81)) = 93" || fail "unexpected result: $RESULT"
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"calculate","arguments":{"expression":"12*7+sqrt(81)"}}}' | mcp_text)
+echo "$RESULT" | grep -q '"result": 93' && pass "calculate(12*7+sqrt(81)) = 93" || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "solve x^2 - 9 = 0" -> solve =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x**2 - 9","variable":"x"}}}')
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x**2 - 9","variable":"x"}}}' | mcp_text)
 echo "$RESULT" | grep -q '"-3"' && echo "$RESULT" | grep -q '"3"' \
   && pass 'solve(x^2 - 9) = {-3, 3}' || fail "unexpected result: $RESULT"
 
@@ -63,29 +89,29 @@ echo
 echo '== prompt: "how many kilometers is 10 miles?" -> convert_units =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"convert_units","arguments":{"value":10,"from_unit":"mile","to_unit":"kilometer"}}}')
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"convert_units","arguments":{"value":10,"from_unit":"mile","to_unit":"kilometer"}}}' | mcp_text)
 echo "$RESULT" | grep -q '16.09344' && pass "convert_units(10 mile -> km) = 16.09344" || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "simplify (x^2 - 1)/(x - 1)" -> simplify =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"(x**2 - 1)/(x - 1)"}}}')
-echo "$RESULT" | grep -q '"x + 1"' && pass "simplify((x^2-1)/(x-1)) = x + 1" || fail "unexpected result: $RESULT"
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"(x**2 - 1)/(x - 1)"}}}' | mcp_text)
+echo "$RESULT" | grep -q '"result": "x + 1"' && pass "simplify((x^2-1)/(x-1)) = x + 1" || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "what is the derivative of x^3 + 2x with respect to x?" -> diff =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"diff","arguments":{"expression":"x**3 + 2*x","variable":"x","order":1}}}')
-echo "$RESULT" | grep -q '"3\*x\*\*2 + 2"' && pass "diff(x^3 + 2x) = 3x^2 + 2" || fail "unexpected result: $RESULT"
+  -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"diff","arguments":{"expression":"x**3 + 2*x","variable":"x","order":1}}}' | mcp_text)
+echo "$RESULT" | grep -q '"result": "3\*x\*\*2 + 2"' && pass "diff(x^3 + 2x) = 3x^2 + 2" || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "integrate 2x from 0 to 5" -> integrate =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"integrate","arguments":{"expression":"2*x","variable":"x","lower":"0","upper":"5"}}}')
-echo "$RESULT" | grep -q '"25"' && pass "integrate(2x, 0, 5) = 25" || fail "unexpected result: $RESULT"
+  -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"integrate","arguments":{"expression":"2*x","variable":"x","lower":"0","upper":"5"}}}' | mcp_text)
+echo "$RESULT" | grep -q '"result": "25"' && pass "integrate(2x, 0, 5) = 25" || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "give me descriptive stats for this dataset" -> describe (real generated dataset) =='
@@ -96,22 +122,22 @@ print([round(random.gauss(50, 10), 2) for _ in range(40)])
 ")
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"describe\",\"arguments\":{\"dataset\":$DATASET}}}")
-echo "$RESULT" | grep -q '"count":40' && pass "describe(40-point generated dataset) computed real stats" || fail "unexpected result: $RESULT"
+  -d "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"describe\",\"arguments\":{\"dataset\":$DATASET}}}" | mcp_text)
+echo "$RESULT" | grep -q '"count": 40' && pass "describe(40-point generated dataset) computed real stats" || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "evaluate a/b + c where a=10, b=4, c=2" -> eval_latex =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"eval_latex","arguments":{"formula":"\\frac{a}{b} + c","variables":{"a":10,"b":4,"c":2}}}}')
-echo "$RESULT" | grep -q '"result":4.5' && pass "eval_latex(a/b + c, a=10,b=4,c=2) = 4.5" || fail "unexpected result: $RESULT"
+  -d '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"eval_latex","arguments":{"formula":"\\frac{a}{b} + c","variables":{"a":10,"b":4,"c":2}}}}' | mcp_text)
+echo "$RESULT" | grep -q '"result": 4.5' && pass "eval_latex(a/b + c, a=10,b=4,c=2) = 4.5" || fail "unexpected result: $RESULT"
 
 echo
 echo "== security: sympify() injection payload is rejected, not executed =="
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
-  -d '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"calculate","arguments":{"expression":"__import__(\"os\").system(\"echo PWNED\")"}}}')
-echo "$RESULT" | grep -Eq '\\?"success\\?":[[:space:]]*false' && pass "dunder-import payload rejected (success:false)" || fail "expected rejection, got: $RESULT"
+  -d '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"calculate","arguments":{"expression":"__import__(\"os\").system(\"echo PWNED\")"}}}' | mcp_text)
+echo "$RESULT" | grep -Eq '"success":[[:space:]]*false' && pass "dunder-import payload rejected (success:false)" || fail "expected rejection, got: $RESULT"
 echo "$RESULT" | grep -q "must not contain" && pass "rejected specifically by the '__' guard in safe_sympify(), not a generic parse failure" || fail "expected the safe_sympify '__' guard message, got: $RESULT"
 
 echo
