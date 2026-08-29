@@ -20,6 +20,9 @@ _VERSION = "0.1.1"  # keep in sync with pyproject.toml [project].version
 
 _HOST = os.environ.get("MATH_HOST", "127.0.0.1")
 _PORT = int(os.environ.get("MATH_PORT", "8765"))
+# Must exceed the reverse proxy's idle-connection timeout, or the proxy will
+# reuse a connection this server has already closed. See main().
+KEEPALIVE_SECONDS = int(os.environ.get("MCP_KEEPALIVE_SECONDS", "300"))
 _oauth_bridge = build_oauth_bridge("MATH")
 _token_verifier, _auth_settings = build_auth("MATH", _HOST, _PORT, _oauth_bridge)
 
@@ -114,7 +117,25 @@ def main() -> None:
     # transport is spelled "streamable-http" there; "http" is fastmcp 2.x's
     # name for it and is silently not a valid choice.
     if args.transport == "http":
-        mcp.run(transport="streamable-http")
+        # uvicorn is driven here rather than through mcp.run("streamable-http")
+        # for one reason: the SDK builds uvicorn.Config without
+        # timeout_keep_alive, so the server closes an idle connection after
+        # uvicorn's default 5s and there is no way to say otherwise. A reverse
+        # proxy pools upstream connections far longer than that -- Caddy's
+        # default is 2 minutes -- so any connection idle between the two is
+        # dead at this end and still live in the pool. Reusing one produced
+        # "aborting with incomplete response ... use of closed network
+        # connection" in the proxy, a 200 with zero bytes to the caller, and a
+        # client that hung until its own timeout with the tool call already
+        # executed here. Measured: idle 2s reused fine, idle 7s closed.
+        import uvicorn
+
+        uvicorn.run(
+            mcp.streamable_http_app(),
+            host=mcp.settings.host,
+            port=mcp.settings.port,
+            timeout_keep_alive=KEEPALIVE_SECONDS,
+        )
     else:
         mcp.run(transport="stdio")
 
