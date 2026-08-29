@@ -7,6 +7,7 @@ import math
 from _math_helpers import (
     UnsafeExpressionError,
     _error,
+    annotate_numeric,
     build_response,
     evaluate_with_timeout,
     fail,
@@ -64,6 +65,16 @@ def calculate(expression: str) -> dict:
         progress.append(fail(f"Eval error: {exc}"))
         return _error(op, f"Evaluation error: {exc}", "Check for division by zero or invalid operations.", progress)
 
+    err, annotation = annotate_numeric(
+        op,
+        result,
+        progress,
+        "Check for division by zero. calculate() returns a number; use solve() for equations "
+        "and simplify() to keep an expression symbolic.",
+    )
+    if err:
+        return err
+
     progress.append(ok(f"Result: {result}"))
 
     # Serialize
@@ -97,6 +108,7 @@ def calculate(expression: str) -> dict:
         extra={
             "expression_parsed": str(expr),
             "steps": [p["message"] for p in progress],
+            **annotation,
         },
     )
 

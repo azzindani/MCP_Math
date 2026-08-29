@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re as _re
 
 import sympy
@@ -9,6 +10,7 @@ import sympy
 from _math_helpers import (
     UnsafeExpressionError,
     _error,
+    annotate_numeric,
     build_response,
     evaluate_with_timeout,
     fail,
@@ -255,18 +257,36 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
             "Ensure all variables are provided or the expression is fully numeric.",
             progress,
         )
+    err, annotation = annotate_numeric(
+        op,
+        result,
+        progress,
+        "Check the substituted values for a division by zero, and the formula for a term that cancels to 0/0.",
+    )
+    if err:
+        return err
+
     progress.append(ok(f"Result: {result}"))
 
     # ── Stage 6: Format ───────────────────────────────────────────────────────
     progress.append(info("Stage 6: Formatting output"))
+    # Same ordering trap calculate() was fixed for, missed here: `int(numeric)`
+    # ran before the `abs(numeric) < 1e15` guard that was meant to keep it in
+    # range, and OverflowError was not in the except list -- so eval_latex(r"\infty")
+    # raised out of the tool, past the contract that says nothing here reaches
+    # server.py. Convert first, then decide.
+    result_out: int | float | str
     try:
         numeric = float(result)
-        if numeric == int(numeric) and abs(numeric) < 1e15:
-            result_out: int | float = int(numeric)
+    except TypeError, ValueError, OverflowError:
+        result_out = str(result)
+    else:
+        if not math.isfinite(numeric):
+            result_out = str(result)
+        elif abs(numeric) < 1e15 and numeric == int(numeric):
+            result_out = int(numeric)
         else:
             result_out = numeric
-    except TypeError, ValueError:
-        result_out = str(result)  # type: ignore[assignment]
 
     return build_response(
         op,
@@ -276,6 +296,7 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
             "formula_parsed": str(expr),
             "substitutions": {k: v for k, v in float_vars.items()},
             "steps": [p["message"] for p in progress],
+            **annotation,
         },
     )
 

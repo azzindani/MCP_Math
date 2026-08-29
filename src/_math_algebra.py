@@ -9,6 +9,7 @@ from _math_helpers import (
     Symbol,
     UnsafeExpressionError,
     _error,
+    annotate_numeric,
     build_response,
     fail,
     info,
@@ -187,6 +188,16 @@ def integrate(expression: str, variable: str = "x", lower: str = "", upper: str 
             progress,
         )
 
+    err, annotation = annotate_numeric(
+        op,
+        result,
+        progress,
+        "The integral does not converge over that interval — check the limits for a "
+        "singularity between them, or integrate over a range that excludes it.",
+    )
+    if err:
+        return err
+
     progress.append(ok(f"Result: {result}"))
     extra: dict = {"variable": variable, "expression": expression}
     if is_definite:
@@ -195,6 +206,7 @@ def integrate(expression: str, variable: str = "x", lower: str = "", upper: str 
         extra["type"] = "definite"
     else:
         extra["type"] = "indefinite"
+    extra.update(annotation)
 
     return build_response(op, str(result), progress, extra=extra)
 

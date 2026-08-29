@@ -42,6 +42,41 @@ def build_response(
     return response
 
 
+def classify_number(value: object) -> tuple[str, str]:
+    """Say what kind of answer a computed result is, and why.
+
+    `_serialize` below turns a non-finite result into its symbol, because JSON
+    has no token for infinity or NaN. That settled how to *write* the value and
+    left the caller with no way to tell "the answer is 7" from "there is no
+    answer": calculate("1/0") returned success=true with result "zoo", and the
+    contract (§7) says success is the first key the model checks. describe()
+    had the same problem and reports `null` plus an `undefined` block naming the
+    reason; this is that signal for the tools that return a single value.
+
+    Returns (kind, reason) where kind is one of:
+        "real"      finite real number — safe to report as a value
+        "symbolic"  still has free symbols; not a number, and not meant to be
+        "undefined" nan or zoo — the expression has no value
+        "infinite"  +/-oo — a real limit, but not a number
+        "complex"   finite, but not on the real line
+    """
+    if not isinstance(value, sympy.Basic):
+        return ("real", "")
+    if not value.is_number:
+        return ("symbolic", "")
+    # sympy collapses these into their singletons (nan + 1 is nan), but an
+    # unevaluated tree can still carry one, so identity is checked with `has`.
+    if value.has(sympy.nan):
+        return ("undefined", "the expression is indeterminate (0/0 or equivalent)")
+    if value.has(sympy.zoo):
+        return ("undefined", "the expression divides by zero")
+    if value.is_finite is False:
+        return ("infinite", "the expression grows without bound")
+    if value.is_real is False:
+        return ("complex", "the result is not on the real line")
+    return ("real", "")
+
+
 def build_error(op: str, error: str, hint: str, progress: list[dict] | None = None) -> dict:
     """Build a standard error response dict.
 
