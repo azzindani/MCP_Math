@@ -1,0 +1,117 @@
+name: "End-to-end smoke test (containerised)"
+description: >
+  Start this repo's container with docker compose, wait for /health, then run
+  its remote_smoke_test.sh against localhost. Hermetic on purpose: a throwaway
+  key is generated per run, nothing is read from Actions secrets, and no
+  traffic reaches the deployed endpoint. Shared across all azzindani MCP_*
+  repos so the job is defined in exactly one place.
+  Called via: uses: azzindani/MCP_Math/.github/actions/e2e-smoke@main
+
+  This covers the layer pytest deliberately cannot reach (STANDARDS.md keeps
+  the suite offline): that the server actually starts, binds, speaks Streamable
+  HTTP, rejects an unauthenticated call, and answers a real tools/call. The
+  regression that motivated it -- DNS-rebinding Host validation returning
+  421 on every tool call behind the reverse proxy -- passed both /health and
+  the container healthcheck, so only a real request through a real header
+  finds it.
+
+inputs:
+  port:
+    description: Host port the compose service publishes.
+    required: true
+  key-env:
+    description: Name of the API key variable this server reads (e.g. MATH_API_KEY).
+    required: true
+  public-host:
+    description: >
+      Public hostname to send as a Host header. Empty disables the check.
+      This is what catches DNS-rebinding rejection without deploying anything.
+    required: false
+    default: ""
+  mcp-path:
+    description: Path of one MCP endpoint, for the Host-header probe.
+    required: false
+    default: "/mcp"
+  health-timeout:
+    description: Seconds to wait for /health before failing.
+    required: false
+    default: "120"
+
+runs:
+  using: composite
+  steps:
+    - name: Create the mounts compose expects
+      shell: bash
+      run: |
+        # tokens.json and oauth-state/ are gitignored, so a fresh checkout does
+        # not have them. Left absent, docker creates a *directory* where the
+        # file mount should be and the server silently starts without them.
+        if [ -f tokens.example.json ] && [ ! -e tokens.json ]; then
+          cp tokens.example.json tokens.json
+        fi
+        mkdir -p oauth-state
+        sudo chown -R 999:999 oauth-state
+
+    - name: Generate a throwaway API key
+      shell: bash
+      run: |
+        # Per-run and thrown away with the runner. The deployed key is never
+        # needed here, so it is never exposed to a public repo's CI.
+        echo "${{ inputs.key-env }}=ci-$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+
+    - name: Start the container
+      shell: bash
+      run: docker compose up -d --build
+
+    - name: Wait for /health
+      shell: bash
+      run: |
+        for _ in $(seq 1 ${{ inputs.health-timeout }}); do
+          if curl -fsS "http://localhost:${{ inputs.port }}/health" >/dev/null 2>&1; then
+            echo "healthy"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::/health never answered within ${{ inputs.health-timeout }}s"
+        docker compose ps
+        docker compose logs --tail=120
+        exit 1
+
+    - name: A public Host header is not rejected
+      if: inputs.public-host != ''
+      shell: bash
+      run: |
+        keyname='${{ inputs.key-env }}'
+        code=$(curl -s -o /dev/null -w '%{http_code}' \
+          -X POST "http://localhost:${{ inputs.port }}${{ inputs.mcp-path }}" \
+          -H "Host: ${{ inputs.public-host }}" \
+          -H 'Content-Type: application/json' \
+          -H 'Accept: application/json, text/event-stream' \
+          -H "Authorization: Bearer ${!keyname}" \
+          -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-host-probe","version":"1"}}}')
+        if [ "$code" = "421" ]; then
+          echo "::error::421 Invalid Host header for ${{ inputs.public-host }} -- DNS-rebinding protection is on again. Set TransportSecuritySettings(enable_dns_rebinding_protection=False)."
+          docker compose logs --tail=60
+          exit 1
+        fi
+        if [ "$code" != "200" ]; then
+          echo "::error::expected 200 through the public Host header, got $code"
+          docker compose logs --tail=60
+          exit 1
+        fi
+        echo "  PASS: Host: ${{ inputs.public-host }} -> 200"
+
+    - name: Run the smoke test against localhost
+      shell: bash
+      run: DOMAIN="http://localhost:${{ inputs.port }}" ./remote_smoke_test.sh
+
+    - name: Container logs (on failure)
+      if: failure()
+      shell: bash
+      run: docker compose logs --tail=200
+
+    - name: Stop the container
+      if: always()
+      shell: bash
+      run: docker compose down -v || true
