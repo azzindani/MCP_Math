@@ -50,7 +50,8 @@ sibling repo's own structure before applying a template; the 5 repos are
 1. `--transport {stdio,http} --host --port` argparse in each `server.py`,
    reading `<PREFIX>_TRANSPORT` / `<PREFIX>_HOST` / `<PREFIX>_PORT` env vars
    as defaults — copy the pattern from `MCP_Math/src/server.py::main()`.
-2. `mcp = fastmcp.FastMCP(..., auth=build_token_verifier("<PREFIX>"))` +
+2. `mcp = FastMCP(..., host=..., port=..., token_verifier=..., auth=...)` from
+   `mcp.server.fastmcp`, built via `build_auth("<PREFIX>", host, port, bridge)` +
    `@mcp.custom_route("/health", ...)` / `/version` — copy the pattern from
    `MCP_Math/src/server.py` (top of file).
 3. A Dockerfile + `docker-compose.yml` built from the matching template above

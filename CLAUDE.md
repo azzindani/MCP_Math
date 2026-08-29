@@ -327,7 +327,12 @@ Never hardcode limits. `MCP_CONSTRAINED_MODE=1` tightens dataset size limits.
 - Linting + formatting: `ruff` only
 - Type checking: `pyright`
 - Testing: `pytest`
-- FastMCP: pin `fastmcp>=2.0,<3.0`
+- MCP SDK: the **official** `mcp` package, pinned `mcp>=1.0,<2.0`. Its high-level
+  API is `mcp.server.fastmcp.FastMCP` (FastMCP v1, donated to the official SDK).
+  Do **not** use the third-party `fastmcp` 2.x package: it is a separate
+  continuation layered on top of `mcp`, and running both flavours across the
+  fleet cost real work — one choke-point fix needed three separate
+  accommodations for their differences.
 
 ```toml
 [tool.ruff]

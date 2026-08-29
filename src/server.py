@@ -6,19 +6,30 @@ import argparse
 import logging
 import os
 
-import fastmcp
+from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 import engine
-from shared import build_oauth_bridge, build_token_verifier
+from shared import build_auth, build_oauth_bridge
 
 logging.basicConfig(level=logging.WARNING, stream=__import__("sys").stderr)
 
 _VERSION = "0.1.1"  # keep in sync with pyproject.toml [project].version
 
+_HOST = os.environ.get("MATH_HOST", "127.0.0.1")
+_PORT = int(os.environ.get("MATH_PORT", "8765"))
 _oauth_bridge = build_oauth_bridge("MATH")
-mcp = fastmcp.FastMCP("math-mcp-server", auth=build_token_verifier("MATH", _oauth_bridge))
+_token_verifier, _auth_settings = build_auth("MATH", _HOST, _PORT, _oauth_bridge)
+
+mcp = FastMCP(
+    "math-mcp-server",
+    host=_HOST,
+    port=_PORT,
+    token_verifier=_token_verifier,
+    auth=_auth_settings,
+)
 if _oauth_bridge is not None:
     _oauth_bridge.register_routes(mcp)
 
@@ -35,12 +46,14 @@ async def version(request: Request) -> JSONResponse:
     return JSONResponse({"current": _VERSION})
 
 
-_ANNOTATIONS = {
-    "readOnlyHint": True,
-    "destructiveHint": False,
-    "idempotentHint": True,
-    "openWorldHint": False,
-}
+# The official SDK types this properly; fastmcp 2.x accepted a bare dict, which
+# is how eight tools shipped an annotation object nothing could validate.
+_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+)
 
 
 @mcp.tool(annotations=_ANNOTATIONS)
@@ -94,12 +107,14 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Math MCP Server")
     parser.add_argument("--transport", choices=["stdio", "http"], default=os.environ.get("MATH_TRANSPORT", "stdio"))
-    parser.add_argument("--host", default=os.environ.get("MATH_HOST", "127.0.0.1"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("MATH_PORT", "8765")))
     args = parser.parse_args()
 
+    # Host and port are settings on the server object in the official SDK, not
+    # arguments to run(), so they are bound above where FastMCP is built. The
+    # transport is spelled "streamable-http" there; "http" is fastmcp 2.x's
+    # name for it and is silently not a valid choice.
     if args.transport == "http":
-        mcp.run(transport="http", host=args.host, port=args.port)
+        mcp.run(transport="streamable-http")
     else:
         mcp.run(transport="stdio")
 
