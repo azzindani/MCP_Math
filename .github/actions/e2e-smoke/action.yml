@@ -36,6 +36,25 @@ inputs:
     description: Seconds to wait for /health before failing.
     required: false
     default: "120"
+  create-dirs:
+    description: >
+      Space-separated gitignored directories this repo's compose bind-mounts.
+      Created and chowned to the container user before startup.
+    required: false
+    default: "oauth-state"
+  create-files:
+    description: >
+      Space-separated gitignored *files* this repo's compose bind-mounts. Docker
+      creates a directory in place of a missing file mount, which the server
+      then fails on at call time while /health still passes.
+    required: false
+    default: ""
+  shared-dir:
+    description: >
+      Host directory to publish as MCP_OUTPUT_DIR. Set it for the repos whose
+      smoke test checks the file exchange; empty skips that setup.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -43,14 +62,30 @@ runs:
     - name: Create the mounts compose expects
       shell: bash
       run: |
-        # tokens.json and oauth-state/ are gitignored, so a fresh checkout does
-        # not have them. Left absent, docker creates a *directory* where the
-        # file mount should be and the server silently starts without them.
+        # These paths are all gitignored, so a fresh checkout does not have
+        # them. Docker then creates a *directory* wherever a file mount was
+        # meant to be, and the server starts and answers /health while every
+        # tool that touches the path fails -- which is exactly how
+        # "[Errno 21] Is a directory: '/app/krawl.db'" reached CI.
         if [ -f tokens.example.json ] && [ ! -e tokens.json ]; then
           cp tokens.example.json tokens.json
         fi
-        mkdir -p oauth-state
-        sudo chown -R 999:999 oauth-state
+        for d in ${{ inputs.create-dirs }}; do
+          mkdir -p "$d"
+        done
+        for f in ${{ inputs.create-files }}; do
+          [ -e "$f" ] || : > "$f"
+        done
+        if [ -n "${{ inputs.shared-dir }}" ]; then
+          mkdir -p "${{ inputs.shared-dir }}"
+          # The container runs unprivileged; a root-owned bind mount makes every
+          # write fail EACCES, and the tool reports no output path at all.
+          echo "MCP_SHARED_DIR=$PWD/${{ inputs.shared-dir }}" >> "$GITHUB_ENV"
+          # Without a base URL the exchange returns no public_url, and the smoke
+          # test's exchange assertions have nothing to check.
+          echo "MCP_PUBLIC_BASE_URL=http://localhost:${{ inputs.port }}/files" >> "$GITHUB_ENV"
+        fi
+        sudo chown -R 999:999 ${{ inputs.create-dirs }} ${{ inputs.create-files }} ${{ inputs.shared-dir }} 2>/dev/null || true
 
     - name: Generate a throwaway API key
       shell: bash
