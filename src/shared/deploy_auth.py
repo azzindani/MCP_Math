@@ -4,6 +4,19 @@ Optionally bridges an OAuth 2.0 surface (see oauth_bridge.py) for clients that
 require it, such as claude.ai's Custom Connector — the OAuth-issued token maps
 back to the same principal the plain bearer token would. Plain bearer tokens
 keep working unchanged either way.
+
+Built on the official MCP Python SDK (`mcp`), not the third-party `fastmcp`
+package. The two are easy to confuse: the official SDK's own high-level API is
+*also* called FastMCP (`mcp.server.fastmcp.FastMCP`, donated as FastMCP v1),
+and `fastmcp` 2.x is a separate continuation layered on top of `mcp`. This
+fleet ran both for a while, and the split had a real cost -- a single
+choke-point fix needed three separate accommodations for the two flavours
+(different exception class, different call_tool signature, and get_tool being a
+coroutine function in one and not the other). One flavour, one behaviour.
+
+The auth surface maps almost exactly: TokenVerifier and AccessToken are the
+same concepts, and FastMCP takes `token_verifier` plus an `auth` AuthSettings
+rather than a single `auth=` verifier.
 """
 
 from __future__ import annotations
@@ -11,7 +24,9 @@ from __future__ import annotations
 import json
 import os
 
-from fastmcp.server.auth.auth import AccessToken, TokenVerifier
+from mcp.server.auth.provider import AccessToken, TokenVerifier
+from mcp.server.auth.settings import AuthSettings
+from pydantic import AnyHttpUrl
 
 from .oauth_bridge import OAuthBridge
 
@@ -77,6 +92,25 @@ def build_token_verifier(prefix: str, oauth_bridge: OAuthBridge | None = None) -
     if not named:
         return None
     return _DynamicTokenVerifier(named, oauth_bridge)
+
+
+def build_auth(
+    prefix: str, host: str, port: int, oauth_bridge: OAuthBridge | None = None
+) -> tuple[TokenVerifier, AuthSettings] | tuple[None, None]:
+    """Build (token_verifier, auth_settings) for the official SDK's FastMCP.
+
+    Same env-var priority as build_token_verifier, which this wraps; the
+    official FastMCP wants the verifier and the settings as two arguments
+    rather than one combined `auth=`, and the settings carry the issuer and
+    resource-server URLs it puts in the WWW-Authenticate hint on a 401.
+
+    (None, None) in open mode — no auth, localhost/private-network use only.
+    """
+    verifier = build_token_verifier(prefix, oauth_bridge)
+    if verifier is None:
+        return None, None
+    base_url = AnyHttpUrl(f"http://{host}:{port}")
+    return verifier, AuthSettings(issuer_url=base_url, resource_server_url=base_url)
 
 
 def build_oauth_bridge(prefix: str, state_dir: str | None = None) -> OAuthBridge | None:

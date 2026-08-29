@@ -4,7 +4,7 @@ version = "0.1.1"
 description = "Self-hosted MCP server for deterministic math computation"
 requires-python = "==3.12.*"
 dependencies = [
-    "fastmcp>=2.0,<3.0",
+    "mcp>=1.0,<2.0",
     "sympy>=1.13,<2.0",
     "numpy>=2.0,<3.0",
     "scipy>=1.14,<2.0",
