@@ -162,7 +162,6 @@ def test_no_response_carries_a_token_json_cannot_write():
     [
         ("oo", "oo"),
         ("-oo", "-oo"),
-        ("1/0", "zoo"),
     ],
 )
 def test_an_infinite_result_comes_back_as_its_symbol(expression, expected):
@@ -176,6 +175,22 @@ def test_an_infinite_result_comes_back_as_its_symbol(expression, expected):
     r = engine.calculate(expression)
     assert r["success"] is True
     assert r["result"] == expected
+    # Infinity is an answer, but not one to do arithmetic on. See
+    # test_a_non_answer_returned_as_an_answer.py.
+    assert r["result_type"] == "infinite"
+
+
+def test_division_by_zero_is_caught_without_escaping_the_tool():
+    """`1/0` was parametrized above as succeeding with the symbol "zoo".
+
+    Not raising was the point of that case and still is; returning it as a
+    successful *value* was never checked and was wrong. zoo means the
+    expression has no value, so it is now a failure that says so.
+    """
+    r = engine.calculate("1/0")
+    assert isinstance(r, dict)
+    assert r["success"] is False
+    assert "divides by zero" in r["error"]
 
 
 def test_an_ordinary_result_is_still_a_number():

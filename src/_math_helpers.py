@@ -34,7 +34,7 @@ from sympy.parsing.sympy_parser import (
     standard_transformations,
 )
 
-from engine.formatter import build_error, build_response  # noqa: F401
+from engine.formatter import build_error, build_response, classify_number  # noqa: F401
 
 # --- engine imports ---
 from engine.sandbox import UnsafeExpressionError, evaluate_with_timeout, validate_ast  # noqa: F401
@@ -147,6 +147,38 @@ def _error(op: str, msg: str, hint: str, progress: list[dict] | None = None) -> 
     return build_error(op, msg, hint, progress)
 
 
+def annotate_numeric(
+    op: str,
+    result: object,
+    progress: list[dict],
+    undefined_hint: str,
+) -> tuple[dict | None, dict]:
+    """Refuse a result with no value; label one that is not a finite real.
+
+    For the three tools that return a single computed number. `zoo` and `nan`
+    are not answers -- 1/0 has no value and 0/0 is indeterminate -- so they are
+    reported as failures with a hint, the same call the repo already makes for a
+    statistic it cannot compute. Infinity and complex results *are* answers, so
+    they stay successful but carry `result_type`, because `result` holds the
+    SymPy symbol and nothing downstream can do arithmetic on it.
+
+    Returns (error_or_None, extra_fields_to_merge).
+    """
+    kind, reason = classify_number(result)
+    if kind == "undefined":
+        progress.append(fail(f"No value: {reason}"))
+        return build_error(op, f"No numeric result: {reason}.", undefined_hint, progress), {}
+    if kind in ("infinite", "complex"):
+        return None, {
+            "result_type": kind,
+            "note": (
+                f"Not a finite real number: {reason}. 'result' carries the symbolic form "
+                f"({kind}), not a value to compute with."
+            ),
+        }
+    return None, {}
+
+
 __all__ = [
     "np",
     "sympy",
@@ -174,4 +206,6 @@ __all__ = [
     "warn",
     "ALLOWED_SYMPY_NODES",
     "_error",
+    "classify_number",
+    "annotate_numeric",
 ]
