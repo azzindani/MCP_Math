@@ -265,7 +265,7 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
             result_out: int | float = int(numeric)
         else:
             result_out = numeric
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         result_out = str(result)  # type: ignore[assignment]
 
     return build_response(
