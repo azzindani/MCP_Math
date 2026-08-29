@@ -384,17 +384,38 @@ CI runs on `ubuntu-22.04`, `macos-latest`, `windows-latest` with `fail-fast: fal
 `PYTHONPATH: "."` and `MCP_CONSTRAINED_MODE: "1"` set in CI env.
 No `brew install libomp` needed (no XGBoost/LightGBM in this project).
 
-### Remote smoke tests (not part of pytest / CI)
+### Remote smoke tests (`remote_smoke_test.sh`)
 
 `pytest` never spins up an MCP process or touches the network — that's
-deliberate (STANDARDS.md offline-first testing). Verifying the deployed HTTP
-endpoint (auth enforcement, real tool calls over the real public domain) is a
-separate, manual/on-demand check: hand-authored `curl` sessions or a
-`remote_smoke_test.sh` script run after `docker compose up`, never wired into
-CI, and never storing the live API key in the repo. This is how the
-Office consolidation's `Invalid Host header` regression (DNS-rebinding
-protection rejecting the public reverse-proxy hostname) was actually caught —
-`pytest` alone could not have found it.
+deliberate (STANDARDS.md offline-first testing). `remote_smoke_test.sh` is the
+separate check that exercises a running server over HTTP: auth enforcement and
+real tool calls with real values. It runs in **two** places.
+
+**In CI, against a container** — the `e2e` job, via the shared action
+`azzindani/MCP_Math/.github/actions/e2e-smoke@main`. It starts the image with
+`docker compose`, waits for `/health`, probes with an arbitrary `Host:` header,
+then runs this script with `DOMAIN=http://localhost:<port>`. Hermetic: the key
+is generated per run and thrown away, and no traffic reaches the deployment.
+This is the layer `pytest` structurally cannot reach, and it is how the
+`Invalid Host header` regression (DNS-rebinding protection rejecting the public
+reverse-proxy hostname) is now caught automatically — it passed both `/health`
+and the container healthcheck while failing every tool call.
+
+**By hand, against the deployment** — same script, no `DOMAIN` override. Still
+manual, still never storing the live API key in the repo. CI must *not* be
+pointed at the deployed endpoint: CI runs on push and the redeploy happens
+after, so it would test the old server against the new code, and a red build
+would mean "the box was restarting". Assertions that need deployment-only
+configuration (`MCP_FETCH_URLS`, a public base URL) skip in CI and run here.
+
+**Read values out of the envelope with `\\?"key\\?"[[:space:]]*:`.** A tool's
+document arrives as the JSON *string* `result.content[0].text`, so keys and
+values are escaped: `\"result\": 93`. Patterns written for unescaped JSON match
+nothing while every call still succeeds — four of the six repos' scripts had
+silently stopped asserting anything after the official-SDK migration dropped
+`structuredContent`. Under `set -euo pipefail` an extractor that matches
+nothing also aborts the script *before* its own `|| fail` can report it, so end
+any such extractor with `|| true`.
 
 
 `tests/test_smoke_test_covers_every_tool.py` keeps that script honest: it reads
