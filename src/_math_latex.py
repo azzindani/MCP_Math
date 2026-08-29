@@ -7,7 +7,6 @@ import re as _re
 import sympy
 
 from _math_helpers import (
-    HAS_LATEX2SYMPY2,
     UnsafeExpressionError,
     _error,
     build_response,
@@ -15,15 +14,10 @@ from _math_helpers import (
     fail,
     info,
     ok,
+    parse_latex,
     safe_sympify,
     validate_ast,
 )
-
-if HAS_LATEX2SYMPY2:
-    from latex2sympy2 import latex2sympy
-else:
-    from sympy.parsing.latex import parse_latex as latex2sympy  # type: ignore[assignment]
-
 from engine.deps import build_dag, topological_sort
 
 # Multi-letter names in a formula: "spends", "click_rate". Single letters are
@@ -63,31 +57,17 @@ _LATEX_COMMANDS = frozenset(
 
 
 def _parse_latex(formula: str):
-    """Parse LaTeX, leaving the parser exactly as it was found.
+    """Parse LaTeX into a SymPy expression.
 
-    latex2sympy2 keeps its symbol tables in module globals and rebinds one of
-    them -- `var` -- to a bare Symbol partway through a failing parse. Every
-    later call then does a membership test against that Symbol, which is where
-    "argument of type 'Symbol' is not iterable" actually comes from. So a single
-    malformed formula disabled eval_latex for the lifetime of the process: on a
-    long-running server every subsequent call failed, with an error describing
-    neither the caller's formula nor the real problem.
-
-    The library cannot be fixed from here, so its globals are snapshotted and
-    put back whether the parse succeeds or raises.
+    This used to snapshot and restore latex2sympy2's module globals: that
+    library rebound one of them -- `var` -- to a bare Symbol partway through a
+    failing parse, so one malformed formula disabled eval_latex for the lifetime
+    of the process. latex2sympy2 pinned antlr4-python3-runtime==4.7.2, which
+    imports `typing.io`, removed in Python 3.13; it has been unmaintained since
+    2022, so the pin could not move and the package was dropped. SymPy's own
+    parser keeps no state between calls, leaving nothing to restore.
     """
-    if not HAS_LATEX2SYMPY2:
-        return latex2sympy(formula)
-
-    import latex2sympy2 as _l2s
-
-    saved = {name: getattr(_l2s, name, None) for name in ("var", "variances", "VARIABLE_VALUES")}
-    try:
-        return latex2sympy(formula)
-    finally:
-        for name, value in saved.items():
-            if value is not None:
-                setattr(_l2s, name, value)
+    return parse_latex(formula)
 
 
 def _bind_names(formula: str, variables: dict) -> tuple[str, list[str]]:
@@ -124,16 +104,26 @@ def _parse_hint(formula: str, variables: dict, exc: Exception) -> str:
     that is not the problem. latex2sympy surfaces this as "argument of type
     'Symbol' is not iterable", which explains nothing to anyone.
     """
-    names = {m.group(0) for m in _WORD.finditer(formula)} - _LATEX_COMMANDS
-    unbound = sorted(names - set(variables))
+    unbound = _named_quantities(formula, variables)
     if unbound:
-        listed = ", ".join(unbound)
-        return (
-            f"The formula uses named quantities with no value supplied: {listed}. "
-            f"Pass them in variables, e.g. variables={{'{unbound[0]}': 1.0}}. "
-            f"To differentiate or rearrange symbolically instead, use diff(), solve() or simplify()."
-        )
+        return _unbound_hint(unbound)
     return "Check LaTeX syntax. Fractions: \\frac{a}{b}, powers: x^{2}."
+
+
+def _named_quantities(formula: str, variables: dict) -> list[str]:
+    """Multi-letter names written in the formula that have no supplied value."""
+    names = {m.group(0) for m in _WORD.finditer(formula)} - _LATEX_COMMANDS
+    return sorted(names - set(variables))
+
+
+def _unbound_hint(unbound: list[str]) -> str:
+    """Name the quantities that have no value, and how to supply them."""
+    listed = ", ".join(unbound)
+    return (
+        f"The formula uses named quantities with no value supplied: {listed}. "
+        f"Pass them in variables, e.g. variables={{'{unbound[0]}': 1.0}}. "
+        f"To differentiate or rearrange symbolically instead, use diff(), solve() or simplify()."
+    )
 
 
 def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
@@ -225,6 +215,30 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
         progress.append(ok(f"Substituted {len(float_vars)} variable(s)"))
     else:
         progress.append(info("No variables to substitute"))
+
+    # ── Stage 4b: Every name must have a value ────────────────────────────────
+    # eval_latex returns a number; a symbol still standing here means the caller
+    # left a quantity unbound. That used to surface on its own, because
+    # latex2sympy2 could not parse a multi-letter name at all and crashed in the
+    # parser. SymPy's parser accepts them, so \frac{spends}{clicks} now parses
+    # cleanly and would evaluate to the string "spends/clicks" under a success
+    # flag -- an answer shaped like a result that is not one. Ask the question
+    # directly instead of inferring it from a parser's failure.
+    leftover = sorted(str(s) for s in expr.free_symbols)
+    if leftover:
+        # SymPy's LaTeX parser reads a multi-letter name as a product of single
+        # letters, so \frac{spends}{clicks} leaves symbols c, ds, e, i, k, l, n,
+        # p, s -- none of which the caller wrote. Report the names as typed, and
+        # fall back to the symbols only when the formula really does use single
+        # letters, which _WORD deliberately does not match.
+        unbound = _named_quantities(formula, variables) or leftover
+        progress.append(fail(f"Unbound: {', '.join(unbound)}"))
+        return _error(
+            op,
+            f"No value supplied for: {', '.join(unbound)}.",
+            _unbound_hint(unbound),
+            progress,
+        )
 
     # ── Stage 5: Evaluate ─────────────────────────────────────────────────────
     progress.append(info("Stage 5: Evaluating"))

@@ -2,20 +2,25 @@
 
 Both defects were found by a full-coverage sweep, then isolated here.
 
-1. State pollution. latex2sympy2 keeps its symbol tables in module globals and
-   rebinds one of them -- `var` -- to a bare Symbol partway through a failing
-   parse. Every later call then does a membership test against that Symbol,
-   which is where "argument of type 'Symbol' is not iterable" comes from. So one
+1. State pollution. latex2sympy2 kept its symbol tables in module globals and
+   rebound one of them -- `var` -- to a bare Symbol partway through a failing
+   parse. Every later call then did a membership test against that Symbol,
+   which is where "argument of type 'Symbol' is not iterable" came from. So one
    malformed formula disabled eval_latex for the lifetime of the process. On a
    long-running server that means the tool stays broken until it is restarted,
    and the error names neither the caller's formula nor the real cause.
+   latex2sympy2 has since been dropped -- it pinned an antlr4 runtime that
+   cannot import on Python 3.13+ -- but the behaviour it broke is still the
+   contract, so these tests stay: a parser is free to be stateless, and this
+   proves the one in use is.
 
-2. Named quantities. latex2sympy cannot parse a multi-letter name at all, so
-   \\frac{spends}{clicks} failed whether or not values were supplied -- it broke
-   in the parser, before substitution could happen. That is the documented use
-   case for this tool (CLAUDE.md 6.5: a formula plus a variables map), so the
-   names are now bound into the formula text before parsing and the parser only
-   ever sees numbers.
+2. Named quantities. Neither parser reads \\frac{spends}{clicks} as two names:
+   latex2sympy2 broke outright, and SymPy reads a multi-letter name as a product
+   of single letters (s*p*e*n*ds). That is the documented use case for this tool
+   (CLAUDE.md 6.5: a formula plus a variables map), so supplied names are bound
+   into the formula text before parsing and the parser only ever sees numbers.
+   A name left unbound is reported as the caller wrote it, not as the letters it
+   was shredded into.
 
 The hint for an unbound formula also said "Check LaTeX syntax", which for a
 perfectly valid formula is worse than no hint: it sends the caller to inspect
@@ -23,8 +28,6 @@ something that is not the problem.
 """
 
 from __future__ import annotations
-
-import pytest
 
 import engine
 
@@ -82,6 +85,22 @@ class TestUnboundNamesAreExplained:
         result = engine.eval_latex(r"\frac{spends}{clicks}")
         assert "variables" in result["hint"]
 
+    def test_an_unbound_name_is_reported_as_written(self):
+        """SymPy parses \\frac{spends}{clicks} as s*p*e*n*ds over c*l*i*c*k*s, so
+        the symbols left standing are nine letters the caller never typed and
+        neither of the two they did. Report the formula's names, not the
+        parser's."""
+        result = engine.eval_latex(r"\frac{spends}{clicks}")
+        assert result["success"] is False
+        assert "clicks, spends" in result["error"], result["error"]
+
+    def test_an_unbound_single_letter_is_still_reported(self):
+        """The name scan deliberately ignores single letters, so this is the one
+        case that must fall back to the parser's own symbols."""
+        result = engine.eval_latex(r"\frac{a}{b}")
+        assert result["success"] is False
+        assert "a" in result["hint"] and "b" in result["hint"]
+
     def test_a_genuinely_malformed_formula_still_gets_the_syntax_hint(self):
         result = engine.eval_latex(r"\frac{")
         assert result["success"] is False
@@ -102,9 +121,3 @@ class TestParserStateSurvivesFailure:
         result = engine.eval_latex(r"\frac{1}{4}")
         assert result["success"] is True
         assert float(result["result"]) == 0.25
-
-    def test_the_parser_globals_are_left_as_they_were_found(self):
-        l2s = pytest.importorskip("latex2sympy2")
-        before = type(getattr(l2s, "var", None))
-        engine.eval_latex(r"\frac{spends}{clicks}")
-        assert type(getattr(l2s, "var", None)) is before, "latex2sympy2.var was left clobbered"

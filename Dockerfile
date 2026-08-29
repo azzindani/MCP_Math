@@ -3,7 +3,7 @@
 # math-mcp-server — production container.
 #
 # Two-stage build: uv sync into a venv, then copy venv + src into a slim
-# python:3.12 runtime. No compiled artifact — src/ runs directly via uv/python.
+# python:3.14 runtime. No compiled artifact — src/ runs directly via uv/python.
 #
 # Build:            docker build -t math-mcp-server:latest .
 # Run stdio (n/a):  stdio is for local process-spawning clients, not containers.
@@ -11,7 +11,7 @@
 # Run with auth:    docker run --rm -p 8765:8765 -e MATH_API_KEY=secret math-mcp-server:latest
 # ─────────────────────────────────────────────────────────────────────────────
 
-ARG PYTHON_VERSION=3.12-slim
+ARG PYTHON_VERSION=3.14-slim
 
 # ── Stage 1: builder ─────────────────────────────────────────────────────────
 FROM python:${PYTHON_VERSION} AS builder

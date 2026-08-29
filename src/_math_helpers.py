@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # --- third-party imports (available after uv sync) ---
 import numpy as np  # noqa: F401
+import pint  # noqa: F401
 import sympy  # noqa: F401
 from scipy import stats as scipy_stats  # noqa: F401
 from sympy import (  # noqa: F401
@@ -32,15 +33,6 @@ from sympy.parsing.sympy_parser import (
     parse_expr,
     standard_transformations,
 )
-
-try:
-    from latex2sympy2 import latex2sympy  # noqa: F401
-
-    HAS_LATEX2SYMPY2 = True
-except ImportError:
-    HAS_LATEX2SYMPY2 = False
-
-import pint  # noqa: F401
 
 from engine.formatter import build_error, build_response  # noqa: F401
 
@@ -122,7 +114,7 @@ _SAFE_SYMPY_GLOBALS["__builtins__"] = {}
 # Humans and LLMs write powers as x^2 and products as 2x -- the README's own
 # usage examples do. standard_transformations alone reads '^' as bitwise XOR,
 # so 'x^2' became Symbol ^ Integer and surfaced a raw Python TypeError, while
-# eval_latex (which parses via latex2sympy2) read the same string as a power.
+# eval_latex (which parses LaTeX) read the same string as a power.
 # One server must not give one string two meanings.
 #
 # This is implicit_multiplication_application MINUS split_symbols, and the
@@ -168,7 +160,6 @@ __all__ = [
     "sympify",
     "safe_sympify",
     "parse_latex",
-    "HAS_LATEX2SYMPY2",
     "pint",
     "UnsafeExpressionError",
     "evaluate_with_timeout",
