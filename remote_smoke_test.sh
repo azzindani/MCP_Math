@@ -82,8 +82,25 @@ echo '== prompt: "solve x^2 - 9 = 0" -> solve =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x**2 - 9","variable":"x"}}}' | mcp_text)
-echo "$RESULT" | grep -q '"-3"' && echo "$RESULT" | grep -q '"3"' \
-  && pass 'solve(x^2 - 9) = {-3, 3}' || fail "unexpected result: $RESULT"
+# Roots are JSON NUMBERS, not quoted strings. This asserted '"-3"' and '"3"'
+# until a698044 made solve() stop returning its roots as text -- so the check
+# that should have proved the fix was the last thing still requiring the
+# defect, and it is the reason that commit's CI went red. Two unit tests in
+# test_human_notation_parses.py had locked the same string form in place and
+# were updated with the fix; this one was missed because pytest never runs it.
+# Roots are JSON NUMBERS, not quoted strings. This asserted '"-3"' and '"3"'
+# until a698044 made solve() stop returning its roots as text -- so the check
+# that should have proved the fix was the last thing still requiring the
+# defect, and it is why that commit's CI went red. Two unit tests in
+# test_human_notation_parses.py had locked the same string form in place and
+# were updated with the fix; this one was missed because pytest never runs it.
+#
+# Whitespace is stripped and the whole array is matched at once, rather than
+# grepping for each root: the payload is pretty-printed across several lines,
+# so a per-line pattern cannot see the brackets, and `"3"` on its own would
+# also match "13" or a quoted 3 somewhere else in the response.
+echo "$RESULT" | tr -d ' \n\r' | grep -q '"result":\[-3,3\]' \
+  && pass 'solve(x^2 - 9) = [-3, 3], as numbers' || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "how many kilometers is 10 miles?" -> convert_units =='
