@@ -78,8 +78,25 @@ def solve(equation: str, variable: str = "x") -> dict:
 
     progress.append(ok(f"Found {len(solutions)} solution(s)"))
 
-    serialized = [str(s) for s in solutions]
-    return build_response(op, serialized, progress, extra={"variable": variable, "equation": equation})
+    # Hand the SymPy objects to the formatter rather than str()-ing them here.
+    # `_serialize` already returns a real JSON number for anything finite --
+    # int where the value is whole -- and falls back to the symbol only where
+    # there is no number to give. Stringifying first bypassed all of that, so
+    # solving x**2 - 4 = 0 answered ["-2", "2"]: two integers delivered as
+    # strings, which every caller then has to parse back and which contradicts
+    # the numbers every other tool in this server returns.
+    response = build_response(op, list(solutions), progress, extra={"variable": variable, "equation": equation})
+
+    # Roots with no numeric value -- sqrt(2)*I, or a root left in terms of
+    # another symbol -- come back as strings, and a list holding both kinds
+    # should say so rather than leaving the caller to discover it by type
+    # error. Costs nothing on the ordinary all-numeric answer.
+    symbolic = [item for item in response["result"] if isinstance(item, str)]
+    if symbolic:
+        response["symbolic_solutions"] = len(symbolic)
+        response["note"] = "solutions with no finite real value are given as their symbolic form (strings)"
+        response["token_estimate"] = len(str(response)) // 4
+    return response
 
 
 def simplify(expression: str) -> dict:

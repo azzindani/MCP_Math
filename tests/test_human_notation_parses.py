@@ -58,7 +58,12 @@ class TestCaretIsExponentiation:
         assert engine.calculate(expression)["result"] == expected
 
     def test_solve_reads_caret_as_a_power(self):
-        assert engine.solve("x^2 - 5*x + 6 = 0", "x")["result"] == ["2", "3"]
+        # Integers, not the strings this asserted until solve stopped
+        # str()-ing its roots before the formatter could see them. The old
+        # expectation was locking in the defect: two whole numbers delivered
+        # as text, which every caller had to parse back and which no other
+        # tool in this server does.
+        assert engine.solve("x^2 - 5*x + 6 = 0", "x")["result"] == [2, 3]
 
     def test_every_tool_agrees_with_eval_latex(self):
         """eval_latex always read '^' as a power; now the others do too."""
@@ -93,7 +98,7 @@ class TestMultiLetterNamesSurviveIntact:
     on success."""
 
     def test_a_named_quantity_is_one_symbol(self):
-        assert engine.solve("velocity^2 - 4 = 0", "velocity")["result"] == ["-2", "2"]
+        assert engine.solve("velocity^2 - 4 = 0", "velocity")["result"] == [-2, 2]
 
     def test_a_product_of_named_quantities_is_not_shattered(self):
         assert _result(engine.simplify("mass*velocity^2")) == "mass*velocity**2"
