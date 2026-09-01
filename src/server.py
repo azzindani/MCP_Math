@@ -16,7 +16,7 @@ from shared import build_auth, build_oauth_bridge
 
 logging.basicConfig(level=logging.WARNING, stream=__import__("sys").stderr)
 
-_VERSION = "0.1.1"  # keep in sync with pyproject.toml [project].version
+_VERSION = "0.1.2"  # keep in sync with pyproject.toml [project].version
 
 _HOST = os.environ.get("MATH_HOST", "127.0.0.1")
 _PORT = int(os.environ.get("MATH_PORT", "8765"))

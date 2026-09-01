@@ -4,14 +4,28 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      publish_image:
+        description: "Also build and push the GHCR container image"
+        type: boolean
+        default: false
 
 jobs:
   # Publishes ghcr.io/<owner>/math-mcp-server:<version> + :latest from the
   # existing Dockerfile. Independent of the `release` job so a registry
-  # permission hiccup never blocks the GitHub Release + tarball.
+  # permission hiccup never blocks the GitHub Release.
   # First run may need repo Settings -> Actions -> "Read and write permissions".
+  #
+  # Opt-in, not automatic. A tag push cuts the GitHub Release only; the fleet
+  # is deployed from locally built images, so publishing a package on every
+  # tag spends CI minutes on an artefact nothing pulls. To publish one, run
+  # this workflow by hand against the tag with publish_image=true. `inputs`
+  # is null on a push event, so the condition is false there without a
+  # second clause.
   docker:
     name: Publish Docker image (GHCR)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_image }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -46,17 +60,13 @@ jobs:
           MCP_CONSTRAINED_MODE: "0"
         run: uv run pytest tests/ -v --tb=short
 
-      - name: Create release archive
-        run: |
-          git archive --format=tar.gz \
-            --prefix=math-mcp-server/ \
-            -o math-mcp-server-${{ github.ref_name }}.tar.gz \
-            HEAD
-
+      # No archive is built here. GitHub attaches its own source zip/tar.gz to
+      # every release from the tag, so a hand-rolled `git archive` of the same
+      # commit only adds a third copy to download.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: math-mcp-server-${{ github.ref_name }}.tar.gz
+          generate_release_notes: true
           body: |
             ## What's included
             - 8 read-only math tools: `calculate`, `convert_units`, `solve`, `simplify`, `diff`, `integrate`, `describe`, `eval_latex`
@@ -64,8 +74,7 @@ jobs:
             - 6-stage LaTeX formula pipeline (parse → validate → resolve → substitute → evaluate → format)
             - Cross-platform timeout (`signal.alarm` on Unix, `threading.Timer` on Windows)
             - Constrained mode via `MCP_CONSTRAINED_MODE=1`
-            - 74 tests passing on Ubuntu, macOS, and Windows
+            - Tests run on Ubuntu, macOS, and Windows
             - HTTP transport (`--transport http`) with `/health`, `/version`, and bearer-token auth (`MATH_TOKENS_FILE` / `MATH_TOKENS` / `MATH_API_KEY`)
-            - Docker image: `ghcr.io/${{ github.repository_owner }}/math-mcp-server:${{ github.ref_name }}`
 
-            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for install instructions, `mcp.json` config, and Docker/HTTP deployment.
+            Install from source — see [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for `mcp.json` config and Docker/HTTP deployment. No container image is published for this release.

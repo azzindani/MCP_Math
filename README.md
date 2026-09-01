@@ -2,6 +2,8 @@
 
 A self-hosted MCP server that offloads all mathematical computation from a local LLM to a deterministic Python engine. Eliminates arithmetic and formula evaluation errors in local models (Qwen, Gemma, Llama, etc.) by making the LLM a dispatcher and the server the sole executor of all numeric operations.
 
+**Release [`v0.1.2`](https://github.com/azzindani/MCP_Math/releases/tag/v0.1.2)** — source only. No wheel and no container image are published: install from the tag with the bundled installer, or build the image yourself from the `Dockerfile` in this repo.
+
 ## Features
 
 * **8 tools** across arithmetic, algebra, statistics, and LaTeX formula evaluation — no cloud, no API keys, no GPU required
@@ -211,7 +213,7 @@ All 8 tools are read-only pure functions. Input → output, nothing persisted.
 
 ```bash
 uv run python src/server.py --transport http --host 0.0.0.0 --port 8765
-curl http://localhost:8765/health   # {"status":"ok","version":"0.1.0"}
+curl http://localhost:8765/health   # {"status":"ok","version":"0.1.2"}
 ```
 
 ### Docker
@@ -329,11 +331,13 @@ math-mcp-server/
 │   └── shared/
 │       ├── platform_utils.py  ← is_constrained_mode(), get_max_*() helpers
 │       └── progress.py        ← ok(), fail(), info(), warn() helpers
-├── tests/
+├── tests/                     ← 226 tests: happy path, sandbox rejection, timeout, constrained mode
 │   ├── fixtures/
 │   │   ├── simple_formulas.json
 │   │   └── messy_latex.json
-│   └── test_engine.py         ← 74 tests: happy path, sandbox rejection, timeout, constrained mode
+│   ├── test_engine.py         ← the tool-by-tool suite
+│   ├── test_*.py              ← one file per defect found, named for the defect
+│   └── verify_tool_docstrings.py  ← CI gate: all @mcp.tool() docstrings ≤ 80 chars
 ├── install/
 │   ├── install.sh             ← macOS / Linux installer
 │   └── install.bat            ← Windows installer
@@ -341,7 +345,6 @@ math-mcp-server/
 ├── uv.lock
 ├── .python-version            ← pins Python 3.14
 ├── .gitattributes
-├── verify_tool_docstrings.py  ← CI gate: all @mcp.tool() docstrings ≤ 80 chars
 └── README.md
 ```
 
@@ -355,7 +358,7 @@ No `eval()`. No `exec()`. No network calls. No state. Pure functions.
 # Install all dependencies
 uv sync
 
-# Run all 74 tests
+# Run all 226 tests
 PYTHONPATH=src uv run pytest tests/ -q --tb=short
 
 # Run in constrained mode
