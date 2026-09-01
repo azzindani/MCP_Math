@@ -57,7 +57,11 @@ sibling repo's own structure before applying a template; the 5 repos are
 3. A Dockerfile + `docker-compose.yml` built from the matching template above
    — **build and run it, curl `/health` and `/mcp` with/without a token,
    before considering the repo done.** Don't ship an unverified Dockerfile.
-4. A `docker-ghcr-publish` job in `release.yml` (and a no-push `docker-build`
-   job in `ci.yml`) calling `azzindani/MCP_Math/.github/actions/docker-ghcr-publish@main`
-   and `.../setup-uv-python@main` — see `MCP_Math/.github/workflows/*.yml`
-   for the exact call shape.
+4. A `docker-ghcr-publish` job in `release.yml`, gated behind a
+   `workflow_dispatch` boolean so a tag publishes nothing by default, calling
+   `azzindani/MCP_Math/.github/actions/docker-ghcr-publish@main` and
+   `.../setup-uv-python@main` — see `MCP_Math/.github/workflows/*.yml` for the
+   exact call shape. Do **not** add a no-push `docker-build` job to `ci.yml`:
+   the `e2e` job already builds the image (`docker compose up --build`) from
+   the same context and then runs it, so a build-only job cannot fail without
+   `e2e` failing first and only costs a second image build per push.
