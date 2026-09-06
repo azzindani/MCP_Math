@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 
 import engine
 from shared import build_auth, build_oauth_bridge
+from shared.arg_errors import contract_errors
 from shared.strict_args import enforce_known_arguments
 
 logging.basicConfig(level=logging.WARNING, stream=__import__("sys").stderr)
@@ -92,7 +93,7 @@ def diff(expression: str, variable: str = "x", order: int = 1) -> dict:
 
 @mcp.tool(annotations=_ANNOTATIONS)
 def integrate(expression: str, variable: str = "x", lower: str = "", upper: str = "") -> dict:
-    """Integrate expression. Returns indefinite or definite integral."""
+    """Integrate expression. Bounds are strings: lower="0" upper="3". Omit=indefinite."""
     return engine.integrate(expression, variable, lower, upper)
 
 
@@ -111,6 +112,13 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
 # An argument name no tool declares is dropped by the bundled FastMCP's
 # pydantic model (extra="ignore") and the call succeeds anyway, so a
 # caller who guesses a parameter name is told nothing. Refuse it instead.
+# A known argument with the WRONG TYPE is rejected by pydantic before any tool
+# body runs, and escaped as a raw dump with no success/hint/token_estimate and a
+# pydantic.dev URL -- on a server whose whole point is that nothing leaves the
+# machine. Give it the fleet's failure shape instead. Installed before the
+# name guard so that guard still answers first.
+contract_errors(mcp)
+
 enforce_known_arguments(mcp)
 
 
