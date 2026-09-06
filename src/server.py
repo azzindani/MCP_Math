@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 
 import engine
 from shared import build_auth, build_oauth_bridge
+from shared.strict_args import enforce_known_arguments
 
 logging.basicConfig(level=logging.WARNING, stream=__import__("sys").stderr)
 
@@ -105,6 +106,11 @@ def describe(dataset: list[float]) -> dict:
 def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
     """Evaluate LaTeX formula with variable substitution. Returns result."""
     return engine.eval_latex(formula, variables)
+
+# An argument name no tool declares is dropped by the bundled FastMCP's
+# pydantic model (extra="ignore") and the call succeeds anyway, so a
+# caller who guesses a parameter name is told nothing. Refuse it instead.
+enforce_known_arguments(mcp)
 
 
 def main() -> None:
