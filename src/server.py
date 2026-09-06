@@ -107,6 +107,7 @@ def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
     """Evaluate LaTeX formula with variable substitution. Returns result."""
     return engine.eval_latex(formula, variables)
 
+
 # An argument name no tool declares is dropped by the bundled FastMCP's
 # pydantic model (extra="ignore") and the call succeeds anyway, so a
 # caller who guesses a parameter name is told nothing. Refuse it instead.
