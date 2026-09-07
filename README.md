@@ -2,7 +2,7 @@
 
 A self-hosted MCP server that offloads all mathematical computation from a local LLM to a deterministic Python engine. Eliminates arithmetic and formula evaluation errors in local models (Qwen, Gemma, Llama, etc.) by making the LLM a dispatcher and the server the sole executor of all numeric operations.
 
-**Release [`v0.1.2`](https://github.com/azzindani/MCP_Math/releases/tag/v0.1.2)** — source only. No wheel and no container image are published: install from the tag with the bundled installer, or build the image yourself from the `Dockerfile` in this repo.
+**Release [`v0.2.0`](https://github.com/azzindani/MCP_Math/releases/tag/v0.2.0)** — source only. No wheel and no container image are published: install from the tag with the bundled installer, or build the image yourself from the `Dockerfile` in this repo.
 
 ## Features
 
