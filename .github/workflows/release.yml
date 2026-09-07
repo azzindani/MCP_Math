@@ -49,7 +49,11 @@ jobs:
       contents: write
 
     steps:
+      # Full history: the notes step diffs against the previous tag, and a
+      # depth-1 checkout has neither the tags nor the commits for it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup uv + Python
         uses: ./.github/actions/setup-uv-python
@@ -63,18 +67,39 @@ jobs:
       # No archive is built here. GitHub attaches its own source zip/tar.gz to
       # every release from the tag, so a hand-rolled `git archive` of the same
       # commit only adds a third copy to download.
+      # The body used to be a fixed block written inline here, so every release
+      # said the same thing and none of them said what had changed in it. It
+      # also carried a hardcoded tool count, which is the drift that made four
+      # READMEs wrong at once -- the tools are listed instead, which cannot go
+      # stale by one.
+      - name: Build release notes
+        run: |
+          PREV_TAG=$(git tag --sort=-creatordate | head -2 | tail -1)
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "${GITHUB_REF#refs/tags/}" ]; then
+            LOG=$(git log --oneline --no-decorate | head -50)
+          else
+            LOG=$(git log --oneline --no-decorate "${PREV_TAG}..HEAD" | head -50)
+          fi
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "$LOG" | sed 's/^/- /'
+            echo ""
+            echo "## What's included"
+            echo ""
+            echo "- Read-only math tools: \`calculate\`, \`convert_units\`, \`solve\`, \`simplify\`, \`diff\`, \`integrate\`, \`describe\`, \`eval_latex\`"
+            echo "- AST-validated expression evaluator — no \`eval()\` or \`exec()\`"
+            echo "- 6-stage LaTeX formula pipeline (parse → validate → resolve → substitute → evaluate → format)"
+            echo "- Cross-platform timeout (\`signal.alarm\` on Unix, \`threading.Timer\` on Windows)"
+            echo "- Constrained mode via \`MCP_CONSTRAINED_MODE=1\`"
+            echo "- Tests run on Ubuntu, macOS, and Windows"
+            echo "- HTTP transport (\`--transport http\`) with \`/health\`, \`/version\`, and bearer-token auth"
+            echo ""
+            echo "Install from source — see [README.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/README.md) for \`mcp.json\` config and Docker/HTTP deployment. No container image is published for this release."
+          } > /tmp/release_notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          body: |
-            ## What's included
-            - 8 read-only math tools: `calculate`, `convert_units`, `solve`, `simplify`, `diff`, `integrate`, `describe`, `eval_latex`
-            - AST-validated expression evaluator — no `eval()` or `exec()`
-            - 6-stage LaTeX formula pipeline (parse → validate → resolve → substitute → evaluate → format)
-            - Cross-platform timeout (`signal.alarm` on Unix, `threading.Timer` on Windows)
-            - Constrained mode via `MCP_CONSTRAINED_MODE=1`
-            - Tests run on Ubuntu, macOS, and Windows
-            - HTTP transport (`--transport http`) with `/health`, `/version`, and bearer-token auth (`MATH_TOKENS_FILE` / `MATH_TOKENS` / `MATH_API_KEY`)
-
-            Install from source — see [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for `mcp.json` config and Docker/HTTP deployment. No container image is published for this release.
+          body_path: /tmp/release_notes.md
