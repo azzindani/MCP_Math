@@ -225,6 +225,14 @@ def integrate(expression: str, variable: str = "x", lower: str = "", upper: str 
         extra["type"] = "indefinite"
     extra.update(annotation)
 
+    # A definite integral with a real value is a number, as solve's roots are:
+    # str(result) sent '9' for the area under x**2 from 0 to 3. Its exact form
+    # rides beside it when the number cannot say it (pi/2 is 1.5707963...).
+    if is_definite and not annotation:
+        response = build_response(op, result, progress, extra=extra)
+        if isinstance(response["result"], (int, float)) and str(result) != str(response["result"]):
+            response["exact"] = str(result)
+        return response
     return build_response(op, str(result), progress, extra=extra)
 
 
