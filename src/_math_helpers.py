@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 # --- third-party imports (available after uv sync) ---
 import numpy as np  # noqa: F401
 import pint  # noqa: F401
@@ -179,7 +181,28 @@ def annotate_numeric(
     return None, {}
 
 
+def clean_float(value: float, scale: float = 0.0) -> float:
+    """A float without the binary noise of the arithmetic that made it.
+
+    100 degC came back as 211.99999999999991 degF and 0.1 + 0.2 as
+    0.30000000000000004: the last bits of a float, not the answer. Fifteen
+    significant digits is all a float carries, so rounding there drops the
+    noise and keeps every digit that means something.
+
+    An offset conversion subtracts large numbers -- 32 degF is 491.67 degR less
+    459.67 -- and leaves absolute noise: 5.684341886080802e-14 degC for what is
+    exactly 0. `scale` is the size of the numbers that were subtracted; a result
+    a trillion times smaller than that is zero.
+    """
+    if not math.isfinite(value):
+        return value
+    if scale and abs(value) < abs(scale) * 1e-12:
+        return 0.0
+    return float(f"{value:.15g}")
+
+
 __all__ = [
+    "clean_float",
     "np",
     "sympy",
     "scipy_stats",

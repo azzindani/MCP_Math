@@ -9,6 +9,7 @@ from _math_helpers import (
     _error,
     annotate_numeric,
     build_response,
+    clean_float,
     evaluate_with_timeout,
     fail,
     info,
@@ -96,10 +97,9 @@ def calculate(expression: str) -> dict:
     else:
         if not math.isfinite(numeric):
             numeric_out = str(result)
-        elif abs(numeric) < 1e15 and numeric == int(numeric):
-            numeric_out = int(numeric)
         else:
-            numeric_out = numeric
+            numeric = clean_float(numeric)
+            numeric_out = int(numeric) if abs(numeric) < 1e15 and numeric == int(numeric) else numeric
 
     return build_response(
         op,
@@ -153,7 +153,11 @@ def convert_units(value: float, from_unit: str, to_unit: str) -> dict:
             progress,
         )
 
-    result_val = float(converted.magnitude)
+    # An offset conversion (degF -> degC) subtracts numbers the size of the
+    # offset; that size is the scale its noise is measured against.
+    offset = float(_ureg.Quantity(0, from_unit).to(to_unit).magnitude)
+    scale = max(abs(float(value)), abs(offset)) if offset else 0.0
+    result_val = clean_float(float(converted.magnitude), scale)
     if result_val == int(result_val) and abs(result_val) < 1e15:
         result_out: int | float = int(result_val)
     else:

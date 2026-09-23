@@ -86,7 +86,8 @@ for line in sys.stdin.read().splitlines():
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
   -d '{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"math","arguments":{"action":"integrate","args":{"expression":"x**2","lower":"0","upper":"3"}}}}' | mcp_text)
-echo "$RESULT" | grep -q '"result": "9"' && pass "math(action=integrate, x**2 over 0..3) = 9" || fail "unexpected result: $RESULT"
+# A definite integral's value is a JSON number, as solve's roots are (it was the string "9").
+echo "$RESULT" | grep -Eq '"result": 9(,|$)' && pass "math(action=integrate, x**2 over 0..3) = 9" || fail "unexpected result: $RESULT"
 echo "The eight calls below use each tool's own name, which still answers."
 
 echo
@@ -147,7 +148,7 @@ echo '== prompt: "integrate 2x from 0 to 5" -> integrate =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
   -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"integrate","arguments":{"expression":"2*x","variable":"x","lower":"0","upper":"5"}}}' | mcp_text)
-echo "$RESULT" | grep -q '"result": "25"' && pass "integrate(2x, 0, 5) = 25" || fail "unexpected result: $RESULT"
+echo "$RESULT" | grep -Eq '"result": 25(,|$)' && pass "integrate(2x, 0, 5) = 25, a number" || fail "unexpected result: $RESULT"
 
 echo
 echo '== prompt: "give me descriptive stats for this dataset" -> describe (real generated dataset) =='
