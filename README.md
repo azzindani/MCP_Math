@@ -6,7 +6,7 @@ A self-hosted MCP server that offloads all mathematical computation from a local
 
 ## Features
 
-* **8 tools** across arithmetic, algebra, statistics, and LaTeX formula evaluation — no cloud, no API keys, no GPU required
+* **One tool, `math`, with 8 actions** across arithmetic, algebra, statistics, and LaTeX formula evaluation — no cloud, no API keys, no GPU required
 * **AST-validated expression evaluator** — never uses `eval()` or `exec()`; all expressions are parsed by SymPy and walked by a whitelist before execution
 * **Symbolic algebra** — solve equations, simplify expressions, differentiate and integrate via SymPy
 * **Unit conversion** — fully local via Pint; handles 1 000+ physical units including temperatures, currencies of measure, and compound units
@@ -48,7 +48,7 @@ Every tool reads the same dialect, so a string that works in one works in all of
 2. Find **mcp.json** or **Edit mcp.json** → click to open
 3. Paste the config for your platform (see below)
 4. Wait for the green dot next to **math**
-5. Start chatting — the model will see all 8 math tools
+5. Start chatting — the model will see one `math` tool whose 8 actions are the tools below
 
 ### Windows
 
@@ -124,11 +124,27 @@ Every tool reads the same dialect, so a string that works in one works in all of
 1. Paste the mcp.json config above and save
 2. LM Studio will launch the server and install all Python dependencies on first connect (2–3 minutes)
 3. A green dot next to **math** confirms the server is ready
-4. Send any message — the model now has access to all 8 tools
+4. Send any message — the model now has `math` and its 8 actions
 
 ## Available Tools
 
 All 8 tools are read-only pure functions. Input → output, nothing persisted.
+
+### One tool in `tools/list`: `math`
+
+A model reads every tool name on every turn, so the server lists one tool, `math`. Its
+`action` is one of the 8 tools below, by name, and its `args` object takes that tool's
+arguments:
+
+```json
+{"name": "math", "arguments": {"action": "integrate", "args": {"expression": "x**2", "lower": "0", "upper": "3"}}}
+```
+
+Each action is run by the tool of that name, so it validates and answers exactly as the
+tool does. An argument the action does not take, a missing required one, or an action
+`math` does not have is refused with `success: false` and a hint naming what to send.
+The 8 names are no longer listed but still answer when called directly, so a client that
+already calls `calculate` keeps working.
 
 ### Arithmetic (2 tools)
 
@@ -273,8 +289,9 @@ requires a bearer token even while it's publicly reachable.
 
 `pytest` stays offline-only; this is the separate check that exercises a
 running HTTP endpoint — a container in CI (the `e2e` job), the deployment by
-hand. Auth enforcement plus a real handwritten-prompt-style call for **all 8
-tools**
+hand. Auth enforcement, a check that `tools/list` lists `math` alone with 8 actions
+and one call through it, plus a real handwritten-prompt-style call for **all 8
+tools** by name
 (`calculate`, `convert_units`, `solve`, `simplify`, `diff`, `integrate`,
 `describe`, `eval_latex`), each asserted against a real computed result, not
 just "the call didn't crash."

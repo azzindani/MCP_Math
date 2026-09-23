@@ -14,6 +14,8 @@ from starlette.responses import JSONResponse
 import engine
 from shared import build_auth, build_oauth_bridge
 from shared.arg_errors import contract_errors
+from shared.domain_tools import register_domains
+from shared.retired import retire
 from shared.strict_args import enforce_known_arguments
 
 logging.basicConfig(level=logging.WARNING, stream=__import__("sys").stderr)
@@ -107,6 +109,19 @@ def describe(dataset: list[float]) -> dict:
 def eval_latex(formula: str, variables: dict[str, float] | None = None) -> dict:
     """Evaluate LaTeX formula with variable substitution. Returns result."""
     return engine.eval_latex(formula, variables)
+
+
+# A model reads every tool name on every turn, and all eight tools do one job:
+# compute something. tools/list carries one tool, `math`, whose `action` picks
+# the operation and whose `args` object takes that operation's arguments. Each
+# action IS the tool of that name, run by the tool itself, so its validation
+# and answers are unchanged. The eight leave tools/list and still answer under
+# their own names, so a client that learned them keeps working.
+_ACTIONS = ("calculate", "convert_units", "solve", "simplify", "diff", "integrate", "describe", "eval_latex")
+_SUMMARY = "Arithmetic, units, algebra, calculus, statistics and LaTeX, by action."
+DOMAINS = {"math": (_SUMMARY, [(mcp, a) for a in _ACTIONS])}
+register_domains(mcp, DOMAINS)
+retire(mcp, {name: f"math(action={name!r})" for name in _ACTIONS}, note=False)
 
 
 # An argument name no tool declares is dropped by the bundled FastMCP's

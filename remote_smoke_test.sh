@@ -71,6 +71,25 @@ curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: ap
   -d '{"jsonrpc":"2.0","id":2,"method":"notifications/initialized"}' > /dev/null
 
 echo
+echo "== tools/list: one tool, math, whose actions are the eight =="
+LISTED=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":20,"method":"tools/list"}' | python3 -c '
+import json, sys
+for line in sys.stdin.read().splitlines():
+    if line.startswith("data:"):
+        tools = json.loads(line[5:])["result"]["tools"]
+        print(" ".join(t["name"] for t in tools), len(tools[0]["inputSchema"]["properties"]["action"]["enum"]))
+        break
+')
+[ "$LISTED" = "math 8" ] && pass "tools/list lists math alone, with 8 actions" || fail "expected 'math 8', got: $LISTED"
+RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"math","arguments":{"action":"integrate","args":{"expression":"x**2","lower":"0","upper":"3"}}}}' | mcp_text)
+echo "$RESULT" | grep -q '"result": "9"' && pass "math(action=integrate, x**2 over 0..3) = 9" || fail "unexpected result: $RESULT"
+echo "The eight calls below use each tool's own name, which still answers."
+
+echo
 echo '== prompt: "what is 12 * 7 + sqrt(81)?" -> calculate =='
 RESULT=$(curl -s -X POST "$DOMAIN/mcp" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $KEY" -H "mcp-session-id: $SID" \
@@ -158,4 +177,4 @@ echo "$RESULT" | grep -Eq '"success":[[:space:]]*false' && pass "dunder-import p
 echo "$RESULT" | grep -q "must not contain" && pass "rejected specifically by the '__' guard in safe_sympify(), not a generic parse failure" || fail "expected the safe_sympify '__' guard message, got: $RESULT"
 
 echo
-echo "ALL 8 TOOLS + security regression PASSED against $DOMAIN"
+echo "math + ALL 8 ACTIONS BY NAME + security regression PASSED against $DOMAIN"
