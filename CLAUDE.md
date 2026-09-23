@@ -96,6 +96,12 @@ math-mcp-server/
 
 **Total: 8 tools** — within the 8-tool target for 8 GB VRAM / 9B model.
 
+`tools/list` carries ONE tool, `math`: an `action` enum naming these 8 and an
+`args` object (shared/domain_tools.py, the fleet's domain-tool shape). Each action
+runs the tool of that name via its own `run()`. The 8 are retired from the listing
+(shared/retired.py, `note=False`) and still answer by name. A new tool here is a new
+`math` action: add it to `_ACTIONS` in server.py as well as decorating it.
+
 | Tool | Module | Type | Description |
 |---|---|---|---|
 | `calculate` | `_math_arithmetic.py` | Tier 1 read | Safe arithmetic expression evaluator |
